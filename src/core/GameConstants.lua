@@ -1,0 +1,3 @@
+GameConstants = {
+    Gravity = 600
+}

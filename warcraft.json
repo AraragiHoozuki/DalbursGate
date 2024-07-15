@@ -1,0 +1,8 @@
+{
+  "mapdir": "map.w3x",
+  "files": ["main.lua"],
+  "lua.package.path": [
+    "lib/?.lua",
+    "lib/?/init.lua"
+  ]
+}
