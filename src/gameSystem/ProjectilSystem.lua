@@ -42,12 +42,18 @@ ProjectilMgr.CreateProjectilBySettings = function(settings, lu_emitter, u_target
     y = settings.offsetY * Sin(theta) + settings.offsetX * Cos(theta) + y
     local z = settings.offsetZ or 0
 
-    local prjt = Projectil:new(nil, lu_emitter, x, y, z, angle, settings, u_target, vec_tpos, damageSettings, level)
+    return Projectil:new(nil, lu_emitter, x, y, z, angle, settings, u_target, vec_tpos, damageSettings, level)
 end
 
+---@param pid string
+---@param lu_emitter LuaUnit
+---@param u_target Unit
+---@param vec_tpos Vector3
+---@param damageSettings table
+---@param level number
 ProjectilMgr.CreateProjectilById = function(pid, lu_emitter, u_target, vec_tpos, damageSettings, level)
-    local settings = ProjectilMaster.AbilityProjectils[pid]
-    ProjectilMgr.CreateProjectilBySettings(settings, lu_emitter, u_target, vec_tpos, damageSettings, level)
+    local settings = Master.Projectil[pid]
+    return ProjectilMgr.CreateProjectilBySettings(settings, lu_emitter, u_target, vec_tpos, damageSettings, level)
 end
 
 ProjectilMgr.Update = function()
@@ -133,6 +139,7 @@ function Projectil:new(o, lu_emitter, x, y, z, yaw, settings, target_unit, targe
     o.tracking_stopped = false
     o.hit_checker_group = CreateGroup()
     o.ended = false
+    o.TempValues = {}
     
     --set Z
     MoveLocation(Projectil.tempLoc, o.position.x, o.position.y)
@@ -167,6 +174,16 @@ function Projectil:GetLevelValue(key)
 end
 
 function Projectil:LV(key) return self:GetLevelValue(key) end
+
+function Projectil:SetXYZ(x, y, z)
+    self.position.x = x
+    self.position.y = y
+    if (z ~= nil) then self.position.z = z end 
+end
+---@param unit Unit
+function Projectil:SetTarget(unit)
+    self.target_unit = unit
+end
 
 function Projectil:InitVelocityZ()
     --对于有目标的非追踪弹道，若受到重力，需要确定初始Z轴速度
@@ -215,7 +232,7 @@ function Projectil:TrackXY()
                 local target_yaw = math.atan(dy,dx)
                 --if (target_yaw < 0) then target_angle = target_angle + 2 * math.pi end
                 self.yaw = self.yaw + self:CalcDeltaYaw(target_yaw)
-                
+                --[[
                 if math.abs(math.angleDiff(self.yaw, target_yaw)) > self.tracking_angle then
                     print('target angle: ', target_yaw)
                     print('self angle: ', self.yaw)
@@ -223,6 +240,7 @@ function Projectil:TrackXY()
                     self.tracking_stopped = true
                     print('tracking fail')
                 end
+                ]]
             end
         --追踪点
         elseif self.track_type == Projectil.TRACK_TYPE_POSITION then
@@ -363,12 +381,12 @@ end
 
 function Projectil:CheckEnd()
     if self.flying_distance > self.max_flying_distance then
-        self.ended = true
+        self:End()
     end
 end
 
 function Projectil:OnHit(lu_victim)
-    if lu_victim ~= nil then
+    if lu_victim ~= nil and self.damageSettings.amount ~= 0 then
         local dmg = Damage:new(nil, self.emitter, lu_victim, self.damageSettings.amount, self.damageSettings.atktype, self.damageSettings.dmgtype, self.damageSettings.eletype)
         dmg:Resolve()
     end

@@ -1,11 +1,14 @@
 ---@class Modifier
+---@field owner LuaUnit
 Modifier = {}
-Modifier.REAPPLY_MODE_NO = 0
-Modifier.REAPPLY_MODE_STACK = 1
-Modifier.REAPPLY_MODE_REFRESH = 2
-Modifier.REAPPLY_MODE_STACK_AND_REFRESH = 3
-Modifier.REAPPLY_MODE_COEXIST = 4
-Modifier.REAPPLY_MODE_REMOVE_OLD = 5
+Modifier.REAPPLY_MODE = {
+    NO = 0,
+    STACK = 1,
+    REFRESH = 2,
+    STACK_AND_REFRESH = 3,
+    COEXIST = 4,
+    REMOVE_OLD = 5
+}
 
 
 ---@param lu_owner LuaUnit
@@ -141,6 +144,9 @@ function Modifier:Remove()
 end
 
 function Modifier:OnDeath()
+    if (self.settings.Death ~= nil) then 
+        self.settings.Death(self) 
+    end
     if (self.remove_on_death == true) then
         self:Remove()
     end
@@ -180,9 +186,3 @@ function Modifier:OnDealDamage(damage)
     if (self.settings.DealDamage ~= nil) then self.settings.DealDamage(self, damage) end
 end
 
--- tags
-Tags = {}
-Tags.STATE_ENLIGHTEN = 0 --照亮
-Tags.STATE_DAYLIGHT = 1 --日光
-
-Tags.RACE_DEEP_SHADOW = 1001 --幽影生物

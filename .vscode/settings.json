@@ -1,4 +1,5 @@
 {
     "warcraft.configuration": "Debug",
-    "warcraft.warcraftVersion": "Reforge"
+    "warcraft.warcraftVersion": "Reforge",
+    "search.useIgnoreFiles": true
 }

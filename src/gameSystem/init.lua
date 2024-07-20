@@ -1,9 +1,11 @@
+require('gameSystem.Settings')
 require('gameSystem.DamageSystem')
 require('gameSystem.LuaUnitSystem')
 require('gameSystem.ModifierSystem')
 require('gameSystem.ProjectilSystem')
+require('gameSystem.MapObjectSystem')
 
---远程角色普攻弹道模拟
+--远程角色普攻弹道模拟、普攻伤害模拟
 do
     local RangedAttackTrigger = CreateTrigger()
     TriggerRegisterAnyUnitEventBJ(RangedAttackTrigger, EVENT_PLAYER_UNIT_ATTACKED)

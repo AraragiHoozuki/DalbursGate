@@ -1,3 +1,4 @@
+---@class Damage
 Damage = {}
 Damage.ATTACK_TYPE_UNKNOWN = 0
 Damage.ATTACK_TYPE_MELEE = 1 --近战攻击
@@ -8,6 +9,7 @@ Damage.DAMAGE_TYPE_NORMAL = 0 --普通伤害
 Damage.DAMAGE_TYPE_DIRECT = 1 --直接伤害，不受任何减免
 Damage.DAMAGE_TYPE_PURE = 2 --纯粹伤害，不受防御、抗性减免，但是可以被伤害控制效果减免
 Damage.DAMAGE_TYPE_DOT = 3 -- damage over time
+Damage.DAMAGE_TYPE_HEAL = 4
 
 Damage.ELEMENT_TYPE_NONE = 0
 Damage.ELEMENT_TYPE_PIERCE = 1 --穿刺
@@ -36,7 +38,7 @@ Damage.ApplyDirectDamage = function(targetUnit, amount)
     SetWidgetLife(targetUnit, life - amount)
 end
 -------------------------------------------------------------------------------
-
+---@return Damage
 function Damage:new(o, lu_source, lu_target, amount, atktype, dmgtype, eletype)
   o = o or {}
   setmetatable(o, self)
@@ -60,8 +62,13 @@ function Damage:new(o, lu_source, lu_target, amount, atktype, dmgtype, eletype)
 end
 
 function Damage:PreApply()
-  self.source:OnBeforeDealDamage(self)
-  self.target:OnBeforeTakeDamage(self)
+  if (self.dmgtype == Damage.DAMAGE_TYPE_HEAL) then
+    
+  else
+    self.source:OnBeforeDealDamage(self)
+    self.target:OnBeforeTakeDamage(self)
+  end
+  
 end
 
 function Damage:Control()
@@ -93,9 +100,14 @@ end
 
 function Damage:Apply()
 
-  Damage.ApplyDirectDamage(self.target.unit, self.amount)
-  self.source:OnDealDamage(self)
-  self.target:OnTakeDamage(self)
+  if (self.dmgtype == Damage.DAMAGE_TYPE_HEAL) then
+    Damage.ApplyDirectDamage(self.target.unit, -self.amount)
+  else
+    Damage.ApplyDirectDamage(self.target.unit, self.amount)
+    self.source:OnDealDamage(self)
+    self.target:OnTakeDamage(self)
+  end
+  
 end
 
 function Damage:Resolve()

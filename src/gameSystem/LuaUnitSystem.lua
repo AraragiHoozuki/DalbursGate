@@ -42,6 +42,8 @@ end
 ----------------------------------------------------------
 
 ---@class LuaUnit
+---@field unit Unit
+---@field modifiers table<number, Modifier>
 LuaUnit = {}
 
 --- @return LuaUnit
@@ -54,7 +56,7 @@ LuaUnit.Get = function(unit)
 end
 
 ---@param o table
----@param unit unit
+---@param unit Unit
 function LuaUnit:new(o, unit)
     o = o or {}
     setmetatable(o, self)
@@ -128,18 +130,18 @@ end
 function LuaUnit:CheckModifierReapply(m)
     local mod = self:GetAffectedModifier(m.id)
     if mod ~= nil then
-        if m.reapply_mode == Modifier.REAPPLY_MODE_NO then
+        if m.reapply_mode == Modifier.REAPPLY_MODE.NO then
             return
-        elseif m.reapply_mode == Modifier.REAPPLY_MODE_STACK then
+        elseif m.reapply_mode == Modifier.REAPPLY_MODE.STACK then
             mod:AddStack(m.stack, false)
-        elseif m.reapply_mode == Modifier.REAPPLY_MODE_REFRESH then
+        elseif m.reapply_mode == Modifier.REAPPLY_MODE.REFRESH then
             mod:Refresh()
-        elseif m.reapply_mode == Modifier.REAPPLY_MODE_STACK_AND_REFRESH then
+        elseif m.reapply_mode == Modifier.REAPPLY_MODE.STACK_AND_REFRESH then
             mod:AddStack(m.stack, true)
-        elseif m.reapply_mode == Modifier.REAPPLY_MODE_COEXIST then
+        elseif m.reapply_mode == Modifier.REAPPLY_MODE.COEXIST then
             table.insert(self.modifiers, m)
             m:OnAcquired()
-        elseif m.reapply_mode == Modifier.REAPPLY_MODE_REMOVE_OLD then
+        elseif m.reapply_mode == Modifier.REAPPLY_MODE.REMOVE_OLD then
             mod:Remove()
             table.insert(self.modifiers, m)
             m:OnAcquired()
@@ -155,7 +157,7 @@ function LuaUnit:AddTestModifier()
 end
 
 function LuaUnit:RemoveModifier(mod)
-    local index = IndexOf(self.modifiers, mod)
+    local index = table.indexOf(self.modifiers, mod)
     self:RemoveModifierByIndex(index)
 end
 function LuaUnit:RemoveModifierById(mid)
