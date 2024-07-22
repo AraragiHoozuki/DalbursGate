@@ -276,7 +276,6 @@ Master.Projectil.SHADOW_DRAIN = {
 则直接杀死目标单位，并在其位置召唤一个幽影仆从；否则对目标造成相应的伤害
 对友军单位使用时，使友军单位临时变成幽影生物（死亡时失效）
 --]]
-
 AbilityScripts.SHADOW_CONVERT = {
     AbilityId = FourCC('A008'),
     ThresholdLifePerStack = {20, 30, 40, 50},
@@ -303,5 +302,99 @@ AbilityScripts.SHADOW_CONVERT = {
             -- set temp shadow
             LuaUnit.Get(v):AcquireModifierById('DEEP_SHADOW_CREATURE_TEMP')
         end
+    end
+}
+
+-- 幽影统领
+--[[
+清空周围所有单位的幽影诅咒效果，每有1层，为自己提高1点全属性
+--]]
+
+AbilityScripts.SHADOW_COMMAND = {
+    AbilityId = FourCC('A007'),
+    Cast = function()
+        local caster = LuaUnit.Get(GetTriggerUnit())
+        local cond = Condition(function()
+            local u = LuaUnit.Get(GetFilterUnit())
+            return u ~= caster and u:IsModifierTypeAffected('DEEP_SHADOW_CURSE')
+        end)
+        local g = CreateGroup()
+        GroupEnumUnitsInRange(g, GetUnitX(caster.unit), GetUnitY(caster.unit), 900, cond)
+        ForGroup(g, function()
+            local u = LuaUnit.Get(GetEnumUnit())
+            local prjt = ProjectilMgr.CreateProjectilById('SHADOW_COMMAND', caster, u.unit, nil, {})
+            prjt:SetXYZ(GetUnitX(u.unit), GetUnitY(u.unit))
+            prjt:SetTarget(caster.unit)
+            local mod = u:GetAffectedModifier('DEEP_SHADOW_CURSE')
+            prjt.TempValues.stack = mod.stack
+            mod:Remove()
+        end)
+        DestroyGroup(g)
+    end
+}
+
+Master.Projectil.SHADOW_COMMAND = {
+    model = [[Abilities\Weapons\AvengerMissile\AvengerMissile.mdl]],
+    velocity = 800,
+    velocityZ = 0,
+    velocityZMax = 99999,
+    no_gravity = true,
+    hit_range = 50,
+    hit_rangeZ = 60,
+    hit_terrain = false,
+    hit_other = false,
+    hit_ally = true,
+    hit_piercing = false,
+    hit_cooldown = 1,
+    track_type = Projectil.TRACK_TYPE_UNIT,
+    trackZ = true,
+    tracking_angle = 360 * math.degree,
+    turning_speed = 360 * math.degree,
+    max_flying_distance = 3000,
+    offsetX = 0,
+    offsetY = 0,
+    offsetZ = 60,
+    LevelValues = {},
+    ---@param this Projectil
+    ---@param victim LuaUnit
+    Hit = function(this, victim)
+        local mod = victim:GetAffectedModifier('SHADOW_COMMAND')
+        if mod ~= nil then
+            mod:AddStack(this.TempValues.stack)
+        else
+            victim:AcquireModifierById('SHADOW_COMMAND', victim, FourCC('A007'))
+            victim:GetAffectedModifier('SHADOW_COMMAND'):AddStack(this.TempValues.stack)
+        end
+    end
+}
+
+Master.Modifier.SHADOW_COMMAND = {
+    id = 'SHADOW_COMMAND',
+    duration = 15,
+    interval = 0.1,
+    reapply_mode = Modifier.REAPPLY_MODE.STACK,
+    stack = 1,
+    max_stack = 999,
+    Effects = {{
+        model = [[Abilities\Spells\Undead\Darksummoning\DarkSummonTarget.mdl]],
+        attach_point = 'origin'
+    }},
+    BindAbility = FourCC('A007'),
+    LevelValues = {
+        Range = {500,500,500,500}
+    },
+    Acquire = function(this) 
+        UnitAddAbility(this.owner.unit, FourCC('A009'))
+    end,
+    Update = function(this)
+        local a = BlzGetUnitAbility(this.owner.unit, FourCC('A009'))
+        IncUnitAbilityLevel(this.owner.unit, FourCC('A009'))
+        BlzSetAbilityIntegerLevelField(a, ABILITY_ILF_STRENGTH_BONUS_ISTR, 0, this.stack)
+        BlzSetAbilityIntegerLevelField(a, ABILITY_ILF_INTELLIGENCE_BONUS, 0, this.stack)
+        BlzSetAbilityIntegerLevelField(a, ABILITY_ILF_AGILITY_BONUS, 0, this.stack)
+        DecUnitAbilityLevel(this.owner.unit, FourCC('A009'))
+    end,
+    Remove = function(this)
+        UnitRemoveAbility(this.owner.unit, FourCC('A009'))
     end
 }

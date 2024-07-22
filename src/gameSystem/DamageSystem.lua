@@ -2,7 +2,7 @@
 Damage = {}
 Damage.ATTACK_TYPE_UNKNOWN = 0
 Damage.ATTACK_TYPE_MELEE = 1 --近战攻击
-Damage.ATTACK_TYPE_PROJECTIL = 2 --弹道攻击（远程攻击）
+Damage.ATTACK_TYPE_PROJECTIL = 2 --远程攻击
 Damage.ATTACK_TYPE_SPELL = 3 -- 法术攻击
 
 Damage.DAMAGE_TYPE_NORMAL = 0 --普通伤害

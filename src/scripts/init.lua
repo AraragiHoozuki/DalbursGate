@@ -1,7 +1,17 @@
 AbilityScripts = {}
+AbilityScripts.AddAbilityWithIntrinsecModifier = function(u, abilityId)
+    UnitAddAbility(u, abilityId)
+    if AbilityIntrinsecModDict[abilityId] ~= nil then
+        for _,mid in ipairs(AbilitySystem.IntrinsecModifiers[abilityId]) do
+            LuaUnit.Get(u):AcquireModifierById(mid, LuaUnit.Get(u), abilityId)
+        end
+        
+    end
+end
 AbilityCastDict = {
     [FourCC('A005')] = 'SHADOW_DRAIN',
     [FourCC('A008')] = 'SHADOW_CONVERT',
+    [FourCC('A007')] = 'SHADOW_COMMAND',
 }
 AbilityIntrinsecModDict = {
     -- 至暗无光
@@ -9,12 +19,16 @@ AbilityIntrinsecModDict = {
     -- 发光 500
     [FourCC('A002')] = {'ENLIGHTENED_PROVIDER'},
     -- 幽影生物
-    [FourCC('A006')] = {'DEEP_SHADOW_CREATURE'}
+    [FourCC('A006')] = {'DEEP_SHADOW_CREATURE'},
+    [FourCC('A00A')] = {'PUSH_FIST'},
 }
 
+
+--------------------------------------------------------------
+--------------------------------------------------------------
+
+require('scripts.Misc')
 require('scripts.DeepShadow')
-
-
 do -- Ability Cast Trigger
     local trigger = CreateTrigger()
     local cond = Condition(function()

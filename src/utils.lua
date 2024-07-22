@@ -128,12 +128,12 @@ GUID = {
 
 
 
-
+---@class Vector2
 Vector2 = {
     x=0, 
     y=0
 }
-
+---@return Vector2
 function Vector2:new(o, x, y)
     o = o or {}
     setmetatable(o, self)

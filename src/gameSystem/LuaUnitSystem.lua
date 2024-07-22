@@ -44,6 +44,7 @@ end
 ---@class LuaUnit
 ---@field unit Unit
 ---@field modifiers table<number, Modifier>
+---@field displaces table<number, Displace>
 LuaUnit = {}
 
 --- @return LuaUnit
@@ -64,6 +65,7 @@ function LuaUnit:new(o, unit)
     o.uuid = GUID.generate()
     o.unit = unit
     o.modifiers = {}
+    o.displaces = {}
     o.hitHistory = {}
     o.atk_spd_modify = 0
     o.default_atk_interval = BlzGetUnitWeaponRealField(o.unit, UNIT_WEAPON_RF_ATTACK_BASE_COOLDOWN, 0)
@@ -78,8 +80,36 @@ function LuaUnit:AttackSpeedModify(value_pct)
 end
 
 function LuaUnit:Update()
-    for _,v in pairs(self.modifiers) do
-        v:Update()
+    self:UpdateModifiers()
+    self:UpdateDisplaces()
+end
+
+function LuaUnit:UpdateDisplaces()
+    if (#(self.displaces)) == 0 then return end
+    local x = GetUnitX(self.unit)
+    local y = GetUnitY(self.unit)
+    for i = #(self.displaces), 1, -1 do
+        local d = self.displaces[i]
+        if d.finished then
+            table.remove(self.displaces, i)
+        else
+            if d.interrupt_action then 
+                IssueImmediateOrderById(self.unit, 851972) -- stop order
+            end
+            x, y = d:Calc(x, y, 0)
+        end
+    end
+    SetUnitX(self.unit, x)
+    SetUnitY(self.unit, y)
+end
+
+function LuaUnit:AddDisplace(d)
+    table.insert(self.displaces, d)
+end
+
+function LuaUnit:UpdateModifiers()
+    for i = #(self.modifiers), 1, -1 do
+        self.modifiers[i]:Update()
     end
 end
 

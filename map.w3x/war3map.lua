@@ -1,3 +1,4 @@
+gg_trg_Untitled_Trigger_001 = nil
 function InitGlobals()
 end
 
@@ -23,6 +24,18 @@ CreatePlayerBuildings()
 CreatePlayerUnits()
 end
 
+function Trig_Untitled_Trigger_001_Actions()
+end
+
+function InitTrig_Untitled_Trigger_001()
+gg_trg_Untitled_Trigger_001 = CreateTrigger()
+TriggerAddAction(gg_trg_Untitled_Trigger_001, Trig_Untitled_Trigger_001_Actions)
+end
+
+function InitCustomTriggers()
+InitTrig_Untitled_Trigger_001()
+end
+
 function InitCustomPlayerSlots()
 SetPlayerStartLocation(Player(0), 0)
 SetPlayerColor(Player(0), ConvertPlayerColor(0))
@@ -45,6 +58,7 @@ SetMapMusic("Music", true, 0)
 CreateAllUnits()
 InitBlizzard()
 InitGlobals()
+InitCustomTriggers()
 end
 
 function config()
