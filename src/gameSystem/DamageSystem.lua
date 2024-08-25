@@ -1,5 +1,21 @@
 ---@class Damage
-Damage = {}
+---@field source LuaUnit
+---@field target LuaUnit
+Damage = {
+  source = nil,
+  target = nil,
+  amount = 0,
+  atktype = 0,
+  dmgtype = 0,
+  eletype = 0,
+  control_set = nil,
+  control_caption_max = nil,
+  control_caption_min = 0,
+  control_add_before = 0,
+  control_rate = 0,
+  control_scale = 1,
+  control_add_after = 0
+}
 Damage.ATTACK_TYPE_UNKNOWN = 0
 Damage.ATTACK_TYPE_MELEE = 1 --近战攻击
 Damage.ATTACK_TYPE_PROJECTIL = 2 --远程攻击
@@ -58,6 +74,15 @@ function Damage:new(o, lu_source, lu_target, amount, atktype, dmgtype, eletype)
   o.control_rate = 0 --倍率、加法叠加
   o.control_scale = 1 --倍率、乘法叠加
   o.control_add_after = 0
+  return o
+end
+
+---@param o Damage
+---@return Damage
+function Damage:ctor(o)
+  o = o or {}
+  setmetatable(o, self)
+  self.__index = self
   return o
 end
 

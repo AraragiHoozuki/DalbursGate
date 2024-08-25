@@ -12,6 +12,9 @@ AbilityCastDict = {
     [FourCC('A005')] = 'SHADOW_DRAIN',
     [FourCC('A008')] = 'SHADOW_CONVERT',
     [FourCC('A007')] = 'SHADOW_COMMAND',
+    [FourCC('A00D')] = 'INFERNAL_METEOR',
+    [FourCC('A00E')] = 'ASTER_CAPT',
+    [FourCC('A00F')] = 'ASTER_CAPT_RECAST',
 }
 AbilityIntrinsecModDict = {
     -- 至暗无光
@@ -20,7 +23,10 @@ AbilityIntrinsecModDict = {
     [FourCC('A002')] = {'ENLIGHTENED_PROVIDER'},
     -- 幽影生物
     [FourCC('A006')] = {'DEEP_SHADOW_CREATURE'},
+
     [FourCC('A00A')] = {'PUSH_FIST'},
+    [FourCC('A00B')] = {'STORM_FORCE_FIELD'},
+    [FourCC('A00C')] = {'INFERNAL_FLAME'},
 }
 
 

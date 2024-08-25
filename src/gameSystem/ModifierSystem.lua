@@ -1,5 +1,6 @@
 ---@class Modifier
 ---@field owner LuaUnit
+---@field applier LuaUnit
 Modifier = {}
 Modifier.REAPPLY_MODE = {
     NO = 0,
@@ -132,9 +133,6 @@ function Modifier:Update()
         if (self.valid_when_death == true or IsUnitAliveBJ(self.owner.unit)) and (self.settings.Update ~= nil) then
             self.settings.Update(self) 
         end
-        for _,efx in pairs(self.effects) do
-            BlzSetSpecialEffectScale(efx, self.effects_scale)
-        end
         self.delta_time = self.delta_time - self.interval
     end
 end
@@ -156,6 +154,12 @@ function Modifier:OnAcquired()
     --create effects
     for _,v in pairs(self.settings.Effects) do
         local eff = AddSpecialEffectTarget(v.model, self.owner.unit, v.attach_point)
+        if (v.scale ~= nil) then
+            BlzSetSpecialEffectScale(eff, v.scale)
+        end
+        if (v.rgb ~= nil) then
+            BlzSetSpecialEffectColor(eff, v.rgb.r, v.rgb.g, v.rgb.b)
+        end
         table.insert(self.effects, eff)
     end
     if (self.settings.Acquire ~= nil) then self.settings.Acquire(self) end

@@ -2,23 +2,23 @@
 Displace = {
     velocity = Vector3:new(nil, 0, 0, 0), -- 位移速度
     accelerate = Vector3:new(nil, 0, 0, 0), -- 位移加速度
-    max_distance = 0,
-    max_duration = 0,
+    max_distance = 0, --位移最大距离
+    max_duration = 0, --位移最大时间
     interruptible = true, -- 可否被其他位移打断
     interrupt_action = true, -- 是否打断单位动作
-    efx = nil, -- effects
-    efx_interval = CoreTicker.Interval,
+    efx = nil, -- 特效
+    efx_interval = CoreTicker.Interval, --特效产生间隔
     Update = nil, -- update callback
     duration = 0,
     distance = 0,
-    finished = false
+    finished = false,
 }
+-- 多个位移叠加方法
 Displace.OVERLAY_METHOD = {}
-Displace.OVERLAY_METHOD.COEXIST = 0
-Displace.OVERLAY_METHOD.STOP_EXISTINGS = 1
-Displace.OVERLAY_METHOD.STOP_SELF = 2
--- 停止已有位移，如果已有位移不可停止，则停止自身
-Displace.OVERLAY_METHOD.STOP_EXISTINGS_IF_FAILED_STOP_SELF = 3
+Displace.OVERLAY_METHOD.COEXIST = 0 -- 共存
+Displace.OVERLAY_METHOD.STOP_EXISTINGS = 1 -- 强制停止其他位移
+Displace.OVERLAY_METHOD.STOP_SELF = 2 -- 有其他位移时停止本位移
+Displace.OVERLAY_METHOD.STOP_EXISTINGS_IF_FAILED_STOP_SELF = 3 -- 停止已有位移，但如果已有位移不可停止，则停止自身
 
 function Displace:new(o)
     o = o or {}

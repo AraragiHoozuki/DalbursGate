@@ -42,10 +42,10 @@ do
                 Hit = nil
             }
             Master.DefaultAttackProjectil[GetUnitTypeId(u)] = settings
-            BlzSetUnitWeaponStringField(u, UNIT_WEAPON_SF_ATTACK_PROJECTILE_ART, 0,'')
-            BlzSetUnitWeaponRealField(u, UNIT_WEAPON_RF_ATTACK_PROJECTILE_SPEED, 0,99999)
             print('弹道初始化')
         end
+        BlzSetUnitWeaponStringField(u, UNIT_WEAPON_SF_ATTACK_PROJECTILE_ART, 0,'')
+        BlzSetUnitWeaponRealField(u, UNIT_WEAPON_RF_ATTACK_PROJECTILE_SPEED, 0,99999)
     end)
 
     local RangeAttackDamageTrigger = CreateTrigger()

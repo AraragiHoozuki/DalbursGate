@@ -118,6 +118,8 @@ function Projectil:new(o, lu_emitter, x, y, z, yaw, settings, target_unit, targe
     o.turning_speed = settings.turning_speed or 0
     o.max_flying_distance = settings.max_flying_distance or o.velocity * 5
     o.model = settings.model or 'Abilities\\Weapons\\LichMissile\\LichMissile.mdl'
+    o.scale = settings.scale or 1
+    
     o.emitter = lu_emitter
     o.damageSettings = {}
     o.damageSettings.amount = damageSettings.amount or 0
@@ -138,6 +140,8 @@ function Projectil:new(o, lu_emitter, x, y, z, yaw, settings, target_unit, targe
     o.target_position = target_position or nil
     o.tracking_stopped = false
     o.hit_checker_group = CreateGroup()
+    o.can_hit = true
+    o.paused = false
     o.ended = false
     o.TempValues = {}
     
@@ -183,6 +187,13 @@ end
 ---@param unit Unit
 function Projectil:SetTarget(unit)
     self.target_unit = unit
+end
+
+function Projectil:EnableHit()
+    self.can_hit = true
+end
+function Projectil:DisableHit()
+    self.can_hit = false
 end
 
 function Projectil:InitVelocityZ()
@@ -307,8 +318,12 @@ function Projectil:UpdateVelocity()
     end
 end
 
+function Projectil:UpdateScale()
+    BlzSetSpecialEffectScale(self.bullet, self.scale)
+end
+
 function Projectil:Update()
-    if (self.ended == true) then return end
+    if (self.ended == true or self.paused == true) then return end
     self.flying_time = self.flying_time + CoreTicker.Interval
     if (self.settings.CustomTrack~=nil) then
         self.settings.CustomTrack(self)
@@ -320,9 +335,11 @@ function Projectil:Update()
     self:UpdateVelocity()
     self:CheckHit()
     self:CheckEnd()
+    
 end
 
 function Projectil:CheckHit()
+    if self.can_hit ~= true then return end
     if (self.hit_terrain == true) then
         MoveLocation(Projectil.tempLoc, self.position.x, self.position.y)
         local terrainZ = GetLocationZ(Projectil.tempLoc)
@@ -348,6 +365,18 @@ function Projectil:CheckHit()
                     return
                 end
             end
+        elseif (self.track_type == Projectil.TRACK_TYPE_POSITION) then
+            if (self.target_position ~= nil) then
+                local distance = self.position:Distance(self.target_position.x, self.target_position.y)
+                local z_check = true
+                if (self.hit_rangeZ > 0) then
+                    z_check = ((self.target_position.z - self.position.z) < self.hit_rangeZ)
+                end
+                if (distance < self.hit_range and z_check) then
+                    self:OnHit(nil)
+                    self.ended = true
+                end
+            end
         end
     else
         local cond = Condition(function() return
@@ -361,7 +390,6 @@ function Projectil:CheckHit()
         if (hit ~= nil) then
             self:OnHit(LuaUnit.Get(hit))
             self.ended = true
-        
         elseif (self.track_type == Projectil.TRACK_TYPE_POSITION) then
             if (self.target_position ~= nil) then
                 local distance = self.position:Distance(self.target_position.x, self.target_position.y)
@@ -398,6 +426,13 @@ end
 
 function Projectil:End()
     self.ended = true
+end
+
+function Projectil:Pause()
+    self.paused = true
+end
+function Projectil:Unpause()
+    self.paused = false
 end
 
 function Projectil:Remove()

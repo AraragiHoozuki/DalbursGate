@@ -2,8 +2,8 @@ gg_trg_Untitled_Trigger_001 = nil
 function InitGlobals()
 end
 
-function CreateUnitsForPlayer0()
-local p = Player(0)
+function CreateUnitsForPlayer1()
+local p = Player(1)
 local u
 local unitID
 local t
@@ -16,7 +16,7 @@ function CreatePlayerBuildings()
 end
 
 function CreatePlayerUnits()
-CreateUnitsForPlayer0()
+CreateUnitsForPlayer1()
 end
 
 function CreateAllUnits()
