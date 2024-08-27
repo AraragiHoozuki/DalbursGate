@@ -15,6 +15,7 @@ AbilityCastDict = {
     [FourCC('A00D')] = 'INFERNAL_METEOR',
     [FourCC('A00E')] = 'ASTER_CAPT',
     [FourCC('A00F')] = 'ASTER_CAPT_RECAST',
+    [FourCC('A00G')] = 'CHARGE_ELECTRON',
 }
 AbilityIntrinsecModDict = {
     -- 至暗无光
@@ -35,6 +36,8 @@ AbilityIntrinsecModDict = {
 
 require('scripts.Misc')
 require('scripts.DeepShadow')
+require('scripts.ElectronLord')
+
 do -- Ability Cast Trigger
     local trigger = CreateTrigger()
     local cond = Condition(function()

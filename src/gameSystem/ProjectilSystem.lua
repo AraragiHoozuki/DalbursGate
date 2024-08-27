@@ -105,7 +105,7 @@ function Projectil:new(o, lu_emitter, x, y, z, yaw, settings, target_unit, targe
     o.velocityZMax = settings.velocityZMax or o.velocityZ
     o.no_gravity = settings.no_gravity or false
     o.hit_range = settings.hit_range or 25
-    o.hit_rangeZ = settings.hit_rangeZ or 0
+    o.hit_rangeZ = settings.hit_rangeZ or 0 -- 0: ignore Z distance
     o.hit_range_2 = (o.hit_range)^2
     o.hit_terrain = settings.hit_terrain or true
     o.hit_other = settings.hit_other == true
@@ -154,6 +154,10 @@ function Projectil:new(o, lu_emitter, x, y, z, yaw, settings, target_unit, targe
     return o
 end
 
+function Projectil:ctor(obj, settings)
+    return Projectil:new(obj, obj.emitter, obj.x, obj.y, obj.z, obj.yaw, settings, obj.target_unit, obj.target_position, obj.damageSettings, obj.level)
+end
+
 function Projectil:GetPlayer()
     return GetOwningPlayer(self.emitter.unit)
 end
@@ -180,10 +184,17 @@ end
 function Projectil:LV(key) return self:GetLevelValue(key) end
 
 function Projectil:SetXYZ(x, y, z)
-    self.position.x = x
-    self.position.y = y
-    if (z ~= nil) then self.position.z = z end 
+    if (x ~= nil) then self.position.x = x end
+    if (y ~= nil) then self.position.y = y end
+    if (z ~= nil) then self.position.z = z end
 end
+
+function Projectil:MoveTo(x, y, z)
+    if (x ~= nil) then self.position.x = x end
+    if (y ~= nil) then self.position.y = y end
+    if (z ~= nil) then self.position.z = z end
+end
+
 ---@param unit Unit
 function Projectil:SetTarget(unit)
     self.target_unit = unit
@@ -243,15 +254,6 @@ function Projectil:TrackXY()
                 local target_yaw = math.atan(dy,dx)
                 --if (target_yaw < 0) then target_angle = target_angle + 2 * math.pi end
                 self.yaw = self.yaw + self:CalcDeltaYaw(target_yaw)
-                --[[
-                if math.abs(math.angleDiff(self.yaw, target_yaw)) > self.tracking_angle then
-                    print('target angle: ', target_yaw)
-                    print('self angle: ', self.yaw)
-                    print('tracking angle: ', self.tracking_angle)
-                    self.tracking_stopped = true
-                    print('tracking fail')
-                end
-                ]]
             end
         --追踪点
         elseif self.track_type == Projectil.TRACK_TYPE_POSITION then
@@ -335,7 +337,34 @@ function Projectil:Update()
     self:UpdateVelocity()
     self:CheckHit()
     self:CheckEnd()
-    
+end
+function Projectil:CheckHitTarget()
+    if (self.track_type == Projectil.TRACK_TYPE_UNIT) then
+        if self.target_unit ~= nil then
+            local x = GetUnitX(self.target_unit)
+            local y = GetUnitY(self.target_unit)
+            local distance = (x-self.position.x)^2+(y-self.position.y)^2
+            local z_check = true
+            if (self.hit_rangeZ > 0) then
+                z_check = (math.abs(Projectil.GetUnitHitZ(self.target_unit) - self.position.z) < self.hit_rangeZ)
+            end
+            if (distance < self.hit_range_2 and z_check) then
+                self:Hit(LuaUnit.Get(self.target_unit))
+                return
+            end
+        end
+    elseif (self.track_type == Projectil.TRACK_TYPE_POSITION) then
+        if (self.target_position ~= nil) then
+            local distance = self.position:Distance(self.target_position.x, self.target_position.y)
+            local z_check = true
+            if (self.hit_rangeZ > 0) then
+                z_check = ((self.target_position.z - self.position.z) < self.hit_rangeZ)
+            end
+            if (distance < self.hit_range and z_check) then
+                self:Hit(nil)
+            end
+        end
+    end
 end
 
 function Projectil:CheckHit()
@@ -344,40 +373,13 @@ function Projectil:CheckHit()
         MoveLocation(Projectil.tempLoc, self.position.x, self.position.y)
         local terrainZ = GetLocationZ(Projectil.tempLoc)
         if (self.position.z + 10 < terrainZ ) then
-            self:OnHit(nil)
+            self:Hit(nil)
             self.ended = true
             return
         end
     end
     if (self.hit_other == false) then
-        if (self.track_type == Projectil.TRACK_TYPE_UNIT) then
-            if self.target_unit ~= nil then
-                local x = GetUnitX(self.target_unit)
-                local y = GetUnitY(self.target_unit)
-                local distance = (x-self.position.x)^2+(y-self.position.y)^2
-                local z_check = true
-                if (self.hit_rangeZ > 0) then
-                    z_check = (math.abs(Projectil.GetUnitHitZ(self.target_unit) - self.position.z) < self.hit_rangeZ)
-                end
-                if (distance < self.hit_range_2 and z_check) then
-                    self:OnHit(LuaUnit.Get(self.target_unit))
-                    self.ended = true
-                    return
-                end
-            end
-        elseif (self.track_type == Projectil.TRACK_TYPE_POSITION) then
-            if (self.target_position ~= nil) then
-                local distance = self.position:Distance(self.target_position.x, self.target_position.y)
-                local z_check = true
-                if (self.hit_rangeZ > 0) then
-                    z_check = ((self.target_position.z - self.position.z) < self.hit_rangeZ)
-                end
-                if (distance < self.hit_range and z_check) then
-                    self:OnHit(nil)
-                    self.ended = true
-                end
-            end
-        end
+        self:CheckHitTarget()
     else
         local cond = Condition(function() return
             (IsUnitEnemy(GetFilterUnit(),GetOwningPlayer(self.emitter.unit)) or self.hit_ally == true) and
@@ -388,8 +390,7 @@ function Projectil:CheckHit()
         DestroyBoolExpr(cond)
         local hit = FirstOfGroup(self.hit_checker_group)
         if (hit ~= nil) then
-            self:OnHit(LuaUnit.Get(hit))
-            self.ended = true
+            self:Hit(LuaUnit.Get(hit))
         elseif (self.track_type == Projectil.TRACK_TYPE_POSITION) then
             if (self.target_position ~= nil) then
                 local distance = self.position:Distance(self.target_position.x, self.target_position.y)
@@ -398,13 +399,11 @@ function Projectil:CheckHit()
                     z_check = ((self.target_position.z - self.position.z) < self.hit_rangeZ)
                 end
                 if (distance < self.hit_range and z_check) then
-                    self:OnHit(nil)
-                    self.ended = true
+                    self:Hit(nil)
                 end
             end
         end
     end
-
 end
 
 function Projectil:CheckEnd()
@@ -413,28 +412,26 @@ function Projectil:CheckEnd()
     end
 end
 
-function Projectil:OnHit(lu_victim)
+function Projectil:Hit(lu_victim)
     if lu_victim ~= nil and self.damageSettings.amount ~= 0 then
         local dmg = Damage:new(nil, self.emitter, lu_victim, self.damageSettings.amount, self.damageSettings.atktype, self.damageSettings.dmgtype, self.damageSettings.eletype)
         dmg:Resolve()
     end
     if (self.settings.Hit ~= nil) then self.settings.Hit(self, lu_victim) end
+    if (self.hit_piercing ~= ture) then self:End() end
 end
 
-function Projectil:OnMiss()
+function Projectil:Miss()
 end
-
 function Projectil:End()
     self.ended = true
 end
-
 function Projectil:Pause()
     self.paused = true
 end
 function Projectil:Unpause()
     self.paused = false
 end
-
 function Projectil:Remove()
     DestroyGroup(self.hit_checker_group)
     DestroyEffect(self.bullet)

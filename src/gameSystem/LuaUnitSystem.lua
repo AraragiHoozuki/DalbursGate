@@ -115,20 +115,20 @@ end
 
 function LuaUnit:AcquireModifier(settings, lu_applier, bindAbility)
     local mod = Modifier.Create(self, settings, lu_applier, bindAbility)
-    self:CheckModifierReapply(mod)
+    return self:CheckModifierReapply(mod)
 end
 function LuaUnit:AcquireModifierById(mid, lu_applier, bindAbility)
     local mod = Modifier.CreateById(self, mid, lu_applier, bindAbility)
-    self:CheckModifierReapply(mod)
+    return self:CheckModifierReapply(mod)
 end
 
 function LuaUnit:ApplyModifier(settings, lu_target, bindAbility)
     local mod = Modifier.Create(lu_target, settings, self, bindAbility)
-    lu_target:CheckModifierReapply(mod)
+    return lu_target:CheckModifierReapply(mod)
 end
 function LuaUnit:ApplyModifierById(mid, lu_target, bindAbility)
     local mod = Modifier.CreateById(lu_target, mid, self, bindAbility)
-    lu_target:CheckModifierReapply(mod)
+    return lu_target:CheckModifierReapply(mod)
 end
 
 function LuaUnit:IsModifierTypeAffected(mid)
@@ -161,24 +161,30 @@ function LuaUnit:CheckModifierReapply(m)
     local mod = self:GetAffectedModifier(m.id)
     if mod ~= nil then
         if m.reapply_mode == Modifier.REAPPLY_MODE.NO then
-            return
+            return nil
         elseif m.reapply_mode == Modifier.REAPPLY_MODE.STACK then
             mod:AddStack(m.stack, false)
+            return nil
         elseif m.reapply_mode == Modifier.REAPPLY_MODE.REFRESH then
             mod:Refresh()
+            return nil
         elseif m.reapply_mode == Modifier.REAPPLY_MODE.STACK_AND_REFRESH then
             mod:AddStack(m.stack, true)
+            return nil
         elseif m.reapply_mode == Modifier.REAPPLY_MODE.COEXIST then
             table.insert(self.modifiers, m)
             m:OnAcquired()
+            return m
         elseif m.reapply_mode == Modifier.REAPPLY_MODE.REMOVE_OLD then
             mod:Remove()
             table.insert(self.modifiers, m)
             m:OnAcquired()
+            return m
         end
     else
         table.insert(self.modifiers, m)
         m:OnAcquired()
+        return m
     end
 end
 
