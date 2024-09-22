@@ -1,6 +1,6 @@
 ---@class Modifier
----@field owner LuaUnit
----@field applier LuaUnit
+---@field owner UnitWrapper
+---@field applier UnitWrapper
 Modifier = {}
 Modifier.REAPPLY_MODE = {
     NO = 0,
@@ -10,20 +10,21 @@ Modifier.REAPPLY_MODE = {
     COEXIST = 4,
     REMOVE_OLD = 5
 }
+Modifier.TempGroup = CreateGroup()
 
 
----@param lu_owner LuaUnit
+---@param lu_owner UnitWrapper
 ---@param settings table
----@param lu_applier LuaUnit
+---@param lu_applier UnitWrapper
 ---@param bindAbility number
 ---@return Modifier
 Modifier.Create = function(lu_owner, settings, lu_applier, bindAbility)
     return Modifier:new(nil, lu_owner, settings, lu_applier, bindAbility)
 end
 
----@param lu_owner LuaUnit
+---@param lu_owner UnitWrapper
 ---@param mid string
----@param lu_applier LuaUnit
+---@param lu_applier UnitWrapper
 ---@param bindAbility number
 ---@return Modifier
 Modifier.CreateById = function(lu_owner, mid, lu_applier, bindAbility)
@@ -32,12 +33,12 @@ Modifier.CreateById = function(lu_owner, mid, lu_applier, bindAbility)
 end
 
 ---@param o table
----@param lu_owner LuaUnit
+---@param owner UnitWrapper
 ---@param settings table
----@param lu_applier LuaUnit
+---@param applier UnitWrapper
 ---@param bindAbility number
 ---@return Modifier
-function Modifier:new(o, lu_owner, settings, lu_applier, bindAbility)
+function Modifier:new(o, owner, settings, applier, bindAbility)
     o = o or {}
     setmetatable(o, self)
     self.__index = self
@@ -45,8 +46,8 @@ function Modifier:new(o, lu_owner, settings, lu_applier, bindAbility)
     o.id = settings.id
     o.uuid = GUID.generate()
     o.ability = bindAbility or settings.BindAbility or nil
-    o.applier = lu_applier or lu_owner
-    o.owner = lu_owner
+    o.applier = applier or owner
+    o.owner = owner
     o.interval = settings.interval or CoreTicker.Interval
     o.duration = settings.duration
     if settings.remove_on_death == nil then
@@ -62,6 +63,7 @@ function Modifier:new(o, lu_owner, settings, lu_applier, bindAbility)
     o.effects = {}
     o.effects_scale = 1
     o.delta_time = 0
+    o.CustomValues = {}
     o.tags = {}
     if settings.tags then 
         for _,tag in ipairs(settings.tags) do
@@ -162,7 +164,7 @@ function Modifier:OnAcquired()
         end
         table.insert(self.effects, eff)
     end
-    if (self.settings.Acquire ~= nil) then self.settings.Acquire(self) end
+    if (self.settings.OnAcquired ~= nil) then self.settings.OnAcquired(self) end
 end
 
 function Modifier:OnRemoved()
@@ -171,22 +173,22 @@ function Modifier:OnRemoved()
         DestroyEffect(v)
     end
     self.effects = {}
-    if (self.settings.Remove ~= nil) then self.settings.Remove(self) end
+    if (self.settings.OnRemoved ~= nil) then self.settings.OnRemoved(self) end
 end
 
 function Modifier:OnBeforeTakeDamage(damage)
-    if (self.settings.BeforeTakeDamage ~= nil) then self.settings.BeforeTakeDamage(self, damage) end
+    if (self.settings.OnBeforeTakeDamage ~= nil) then self.settings.OnBeforeTakeDamage(self, damage) end
 end
 function Modifier:OnBeforeDealDamage(damage)
-    if (self.settings.BeforeDealDamage ~= nil) then self.settings.BeforeDealDamage(self, damage) end
+    if (self.settings.OnBeforeDealDamage ~= nil) then self.settings.OnBeforeDealDamage(self, damage) end
 end
 
 function Modifier:OnTakeDamage(damage)
-    if (self.settings.TakeDamage ~= nil) then self.settings.TakeDamage(self, damage) end
+    if (self.settings.OnTakeDamage ~= nil) then self.settings.OnTakeDamage(self, damage) end
 end
 
 
 function Modifier:OnDealDamage(damage)
-    if (self.settings.DealDamage ~= nil) then self.settings.DealDamage(self, damage) end
+    if (self.settings.OnDealDamage ~= nil) then self.settings.OnDealDamage(self, damage) end
 end
 

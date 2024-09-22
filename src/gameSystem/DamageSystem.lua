@@ -63,7 +63,7 @@ function Damage:new(o, lu_source, lu_target, amount, atktype, dmgtype, eletype)
   o.target = lu_target
   o.amount = amount
   o.amount_before_control = amount
-  o.atktype = atktype or Damage.ATTACK_TYPE_NORMAL
+  o.atktype = atktype or Damage.ATTACK_TYPE_UNKNOWN
   o.dmgtype = dmgtype or Damage.DAMAGE_TYPE_NORMAL
   o.eletype = eletype or Damage.ELEMENT_TYPE_NONE
   --controls

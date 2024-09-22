@@ -1,27 +1,30 @@
+require('utils')
+require('gameSystem.EntitySystem')
+
 UnitMgr = {}
-UnitMgr.DummyCaster = FourCC('n000')
----@type table<unit, LuaUnit>
-UnitMgr.LuaUnits = {}
+UnitMgr.DummyCaster = FourCC('h000')
+---@type table<unit, UnitWrapper>
+UnitMgr.Units = {}
 
 --- register unit to lua unit
 ---@param unit unit
----@return LuaUnit
+---@return UnitWrapper
 UnitMgr.RegisterUnit = function(unit)
-    local lu = LuaUnit:new(nil, unit)
-    UnitMgr.LuaUnits[unit] = lu
-    return lu;
+    local uw = UnitWrapper:ctor(unit)
+    UnitMgr.Units[unit] = uw
+    return uw;
 end
 
 UnitMgr.UnregisterUnit = function(unit)
-    UnitMgr.LuaUnits[unit] = nil
+    UnitMgr.Units[unit] = nil
 end
 
-UnitMgr.UnregisterLuaUnit = function(lu)
-    UnitMgr.LuaUnits[lu.unit] = nil
+UnitMgr.UnregisterLuaUnit = function(uw)
+    UnitMgr.Units[uw.unit] = nil
 end
 
-UnitMgr.IsUnitRegistered = function(unit)
-    return UnitMgr.LuaUnits[unit] ~= nil
+UnitMgr.UnitRegisteredQ = function(unit)
+    return UnitMgr.Units[unit] ~= nil
 end
 
 UnitMgr.RemoveUnit = function(unit)
@@ -30,67 +33,70 @@ UnitMgr.RemoveUnit = function(unit)
 end
 
 UnitMgr.Update = function()
-    for _,v in pairs(UnitMgr.LuaUnits) do
+    for _,v in pairs(UnitMgr.Units) do
         v:Update()
     end
 end
 
 UnitMgr.DummySpellTarget = function(speller, target, abiId, level, order_string)
-    print(speller, target)
     local dummy = CreateUnit(GetOwningPlayer(speller), UnitMgr.DummyCaster, GetUnitX(speller), GetUnitY(speller), 0)
     UnitApplyTimedLife(dummy, FourCC('BTLF'), 1)
-    --ShowUnit(dummy, false)
+    ShowUnit(dummy, false)
     UnitAddAbility(dummy, abiId)
     SetUnitAbilityLevel(dummy, abiId, level)
     IssueTargetOrder(dummy, order_string, target)
 end
+--------------------------------------------------------------------
 
-----------------------------------------------------------
+---@class UnitWrapper
+UnitWrapper = Entity:ctor{}
 
----@class LuaUnit
----@field unit Unit
----@field modifiers table<number, Modifier>
----@field displaces table<number, Displace>
-LuaUnit = {}
-
---- @return LuaUnit
-LuaUnit.Get = function(unit)
-    if (UnitMgr.IsUnitRegistered(unit)) then
-        return UnitMgr.LuaUnits[unit]
+UnitWrapper.Get = function(unit)
+    if (UnitMgr.UnitRegisteredQ(unit)) then
+        return UnitMgr.Units[unit]
     else
         return UnitMgr.RegisterUnit(unit)
     end
 end
 
----@param o table
----@param unit Unit
-function LuaUnit:new(o, unit)
-    o = o or {}
+---@return UnitWrapper
+function UnitWrapper:ctor(unit)
+    local o = Entity:ctor()
     setmetatable(o, self)
     self.__index = self
-    o.uuid = GUID.generate()
+    o.innerWidget = unit
     o.unit = unit
     o.modifiers = {}
     o.displaces = {}
-    o.hitHistory = {}
-    o.atk_spd_modify = 0
-    o.default_atk_interval = BlzGetUnitWeaponRealField(o.unit, UNIT_WEAPON_RF_ATTACK_BASE_COOLDOWN, 0)
+    o:InitCommonAbilities()
     return o
 end
 
-function LuaUnit:AttackSpeedModify(value_pct)
-    self.atk_spd_modify = self.atk_spd_modify + value_pct
-    local value = self.atk_spd_modify/100
-    local interval_new = self.default_atk_interval/(1+value)
-    BlzSetUnitWeaponRealField(self.unit, UNIT_WEAPON_RF_ATTACK_BASE_COOLDOWN, 0, interval_new)
+function UnitWrapper:InitCommonAbilities()
+    if (GetUnitAbilityLevel(self.unit, CommonAbilitiy.AttackSpeed) < 1) then
+        UnitAddAbility(self.unit, CommonAbilitiy.AttackSpeed)
+    end
+    if (GetUnitAbilityLevel(self.unit, CommonAbilitiy.MoveSpeed) < 1) then
+        UnitAddAbility(self.unit, CommonAbilitiy.MoveSpeed)
+    end
+    self.attack_speed_ability = BlzGetUnitAbility(self.unit, CommonAbilitiy.AttackSpeed)
+    self.move_speed_ability = BlzGetUnitAbility(self.unit, CommonAbilitiy.MoveSpeed)
+end
+function UnitWrapper:GetBonusAttackSpeed()
+    return BlzGetAbilityRealLevelField(self.attack_speed_ability, ABILITY_RLF_ATTACK_SPEED_INCREASE_ISX1, 0)
+end
+function UnitWrapper:AddAttackSpeed(value)
+    BlzSetAbilityRealLevelField(self.attack_speed_ability, ABILITY_RLF_ATTACK_SPEED_INCREASE_ISX1, 0, self:GetBonusAttackSpeed() + value)
+    IncUnitAbilityLevel(self.unit, CommonAbilitiy.AttackSpeed)
+    DecUnitAbilityLevel(self.unit, CommonAbilitiy.AttackSpeed)
 end
 
-function LuaUnit:Update()
+function UnitWrapper:Update()
     self:UpdateModifiers()
     self:UpdateDisplaces()
 end
 
-function LuaUnit:UpdateDisplaces()
+function UnitWrapper:UpdateDisplaces()
     if (#(self.displaces)) == 0 then return end
     local x = GetUnitX(self.unit)
     local y = GetUnitY(self.unit)
@@ -109,35 +115,35 @@ function LuaUnit:UpdateDisplaces()
     SetUnitY(self.unit, y)
 end
 
-function LuaUnit:AddDisplace(d)
+function UnitWrapper:AddDisplace(d)
     table.insert(self.displaces, d)
 end
 
-function LuaUnit:UpdateModifiers()
+function UnitWrapper:UpdateModifiers()
     for i = #(self.modifiers), 1, -1 do
         self.modifiers[i]:Update()
     end
 end
 
-function LuaUnit:AcquireModifier(settings, lu_applier, bindAbility)
+function UnitWrapper:AcquireModifier(settings, lu_applier, bindAbility)
     local mod = Modifier.Create(self, settings, lu_applier, bindAbility)
     return self:CheckModifierReapply(mod)
 end
-function LuaUnit:AcquireModifierById(mid, lu_applier, bindAbility)
+function UnitWrapper:AcquireModifierById(mid, lu_applier, bindAbility)
     local mod = Modifier.CreateById(self, mid, lu_applier, bindAbility)
     return self:CheckModifierReapply(mod)
 end
 
-function LuaUnit:ApplyModifier(settings, lu_target, bindAbility)
+function UnitWrapper:ApplyModifier(settings, lu_target, bindAbility)
     local mod = Modifier.Create(lu_target, settings, self, bindAbility)
     return lu_target:CheckModifierReapply(mod)
 end
-function LuaUnit:ApplyModifierById(mid, lu_target, bindAbility)
+function UnitWrapper:ApplyModifierById(mid, lu_target, bindAbility)
     local mod = Modifier.CreateById(lu_target, mid, self, bindAbility)
     return lu_target:CheckModifierReapply(mod)
 end
 
-function LuaUnit:IsModifierTypeAffected(mid)
+function UnitWrapper:IsModifierTypeAffected(mid)
     for k,v in pairs(self.modifiers) do
         if v.id == mid then
             return true
@@ -145,7 +151,7 @@ function LuaUnit:IsModifierTypeAffected(mid)
     end
     return false
 end
-function LuaUnit:GetAffectedModifier(mid)
+function UnitWrapper:GetAffectedModifier(mid)
     for _,v in pairs(self.modifiers) do
         if v.id == mid then
             return v
@@ -153,7 +159,7 @@ function LuaUnit:GetAffectedModifier(mid)
     end
     return nil
 end
-function LuaUnit:GetAffectedModifierIndex(mid)
+function UnitWrapper:GetAffectedModifierIndex(mid)
     for i,v in ipairs(self.modifiers) do
         if v.id == mid then
             return i
@@ -163,7 +169,7 @@ function LuaUnit:GetAffectedModifierIndex(mid)
 end
 
 ---@param m Modifier
-function LuaUnit:CheckModifierReapply(m)
+function UnitWrapper:CheckModifierReapply(m)
     local mod = self:GetAffectedModifier(m.id)
     if mod ~= nil then
         if m.reapply_mode == Modifier.REAPPLY_MODE.NO then
@@ -194,26 +200,26 @@ function LuaUnit:CheckModifierReapply(m)
     end
 end
 
-function LuaUnit:AddTestModifier()
+function UnitWrapper:AddTestModifier()
     self:AcquireModifier('MODIFIER_TEST')
 end
 
-function LuaUnit:RemoveModifier(mod)
+function UnitWrapper:RemoveModifier(mod)
     local index = table.indexOf(self.modifiers, mod)
     self:RemoveModifierByIndex(index)
 end
-function LuaUnit:RemoveModifierById(mid)
+function UnitWrapper:RemoveModifierById(mid)
     local index = self:GetAffectedModifierIndex(mid)
     self:RemoveModifierByIndex(index)
 end
-function LuaUnit:RemoveModifierByIndex(index)
+function UnitWrapper:RemoveModifierByIndex(index)
     if index ~= nil then
         local mod = table.remove(self.modifiers, index)
         mod:OnRemoved()
     end
 end
 
-function LuaUnit:HasTag(tag)
+function UnitWrapper:HasTag(tag)
     for _,m in ipairs(self.modifiers) do
         if m.tags[tag] ~= nil then
             return true
@@ -222,30 +228,30 @@ function LuaUnit:HasTag(tag)
     return false
 end
 
-function LuaUnit:OnDeath()
+function UnitWrapper:OnDeath()
     for _,m in pairs(self.modifiers) do
         m:OnDeath()
     end
 end
 
-function LuaUnit:OnBeforeDealDamage(damage)
+function UnitWrapper:OnBeforeDealDamage(damage)
     for _,m in pairs(self.modifiers) do
         m:OnBeforeDealDamage(damage)
     end
 end
-function LuaUnit:OnBeforeTakeDamage(damage)
+function UnitWrapper:OnBeforeTakeDamage(damage)
     for _,m in pairs(self.modifiers) do
         m:OnBeforeTakeDamage(damage)
     end
 end
 
-function LuaUnit:OnDealDamage(damage)
+function UnitWrapper:OnDealDamage(damage)
     for _,m in pairs(self.modifiers) do
         m:OnDealDamage(damage)
     end
 end
 
-function LuaUnit:OnTakeDamage(damage)
+function UnitWrapper:OnTakeDamage(damage)
     for _,m in pairs(self.modifiers) do
         m:OnTakeDamage(damage)
     end

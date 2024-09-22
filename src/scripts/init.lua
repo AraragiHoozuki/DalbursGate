@@ -3,20 +3,17 @@ AbilityScripts.AddAbilityWithIntrinsecModifier = function(u, abilityId)
     UnitAddAbility(u, abilityId)
     if AbilityIntrinsecModDict[abilityId] ~= nil then
         for _,mid in ipairs(AbilitySystem.IntrinsecModifiers[abilityId]) do
-            LuaUnit.Get(u):AcquireModifierById(mid, LuaUnit.Get(u), abilityId)
+            UnitWrapper.Get(u):AcquireModifierById(mid, UnitWrapper.Get(u), abilityId)
         end
         
     end
 end
 AbilityCastDict = {
-    [FourCC('A005')] = 'SHADOW_DRAIN',
-    [FourCC('A008')] = 'SHADOW_CONVERT',
-    [FourCC('A007')] = 'SHADOW_COMMAND',
-    [FourCC('A00D')] = 'INFERNAL_METEOR',
-    [FourCC('A00E')] = 'ASTER_CAPT',
-    [FourCC('A00F')] = 'ASTER_CAPT_RECAST',
-    [FourCC('A00G')] = 'CHARGE_ELECTRON',
+    [FourCC('A00D')] = 'BOUNCING_INFERNAL',
+    [FourCC('A00I')] = 'SPAWN_TEST_UNITS',
+    [FourCC('A00M')] = 'SLEEPINESS_SETS_IN',
 }
+
 AbilityIntrinsecModDict = {
     -- 至暗无光
     [FourCC('A000')] = {'DEEP_SHADOW_CURSE_PROVIDER','DEEP_SHADOW_CREATURE', 'DEEP_SHADOW_CURSE_GRAND_PROVIDER'},
@@ -28,6 +25,7 @@ AbilityIntrinsecModDict = {
     [FourCC('A00A')] = {'PUSH_FIST'},
     [FourCC('A00B')] = {'STORM_FORCE_FIELD'},
     [FourCC('A00C')] = {'INFERNAL_FLAME'},
+    [FourCC('AUav')] = {'BLOOD_THIRST_AURA'},
 }
 
 
@@ -35,8 +33,6 @@ AbilityIntrinsecModDict = {
 --------------------------------------------------------------
 
 require('scripts.Misc')
-require('scripts.DeepShadow')
-require('scripts.ElectronLord')
 
 do -- Ability Cast Trigger
     local trigger = CreateTrigger()
@@ -56,9 +52,9 @@ do -- Intrinsec Modifier Trigger
     local cond = Condition(function()
         local learnedSkillId = GetLearnedSkill()
         if (AbilityIntrinsecModDict[learnedSkillId] ~= nil and GetLearnedSkillLevel() == 1) then
-            local lu = LuaUnit.Get(GetLearningUnit())
+            local uw = UnitWrapper.Get(GetLearningUnit())
             for _,mid in ipairs(AbilityIntrinsecModDict[learnedSkillId]) do
-                lu:AcquireModifierById(mid, lu, learnedSkillId)
+                uw:AcquireModifierById(mid, uw, learnedSkillId)
             end
         end
         return false
@@ -72,7 +68,7 @@ do -- Intrinsec Modifier Trigger
         for aid,mids in pairs(AbilityIntrinsecModDict) do
             if (GetUnitAbilityLevel(unit, aid) > 0) then
                 for _,mid in ipairs(mids) do
-                    LuaUnit.Get(unit):AcquireModifierById(mid, LuaUnit.Get(unit), aid)
+                    UnitWrapper.Get(unit):AcquireModifierById(mid, UnitWrapper.Get(unit), aid)
                 end
             end
         end
@@ -81,3 +77,20 @@ do -- Intrinsec Modifier Trigger
     TriggerRegisterEnterRectSimple(trigger2, GetPlayableMapRect())
     TriggerAddCondition(trigger2, cond2)
 end
+
+AbilityScripts.SPAWN_TEST_UNITS = {
+    AbilityId = FourCC('A00I'),
+    RandomUnitPool = {
+        FourCC('hfoo'),FourCC('hkni'),FourCC('hmpr'),FourCC('hmtt'),FourCC('ogru'),FourCC('otau')
+    },
+    Cast = function()
+        local caster = UnitWrapper.Get(GetTriggerUnit())
+        local angle = GetUnitFacing(caster.unit)
+        local x = GetUnitX(caster.unit) + 1500*CosBJ(angle)
+        local y = GetUnitY(caster.unit) + 1500*SinBJ(angle)
+        for i=10,1,-1 do
+            local id = AbilityScripts.SPAWN_TEST_UNITS.RandomUnitPool[math.random(1,#AbilityScripts.SPAWN_TEST_UNITS.RandomUnitPool)]
+            CreateUnit(Player(1), id, x, y, 293)
+        end
+    end
+}

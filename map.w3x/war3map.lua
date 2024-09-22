@@ -2,26 +2,11 @@ gg_trg_Untitled_Trigger_001 = nil
 function InitGlobals()
 end
 
-function CreateUnitsForPlayer1()
-local p = Player(1)
-local u
-local unitID
-local t
-local life
-
-u = BlzCreateUnitWithSkin(p, FourCC("h000"), -123.3, -31.5, 293.630, FourCC("h000"))
+function Trig_Untitled_Trigger_001_Conditions()
+if (not (UnitCanSleepPerm(GetTriggerUnit()) == true)) then
+return false
 end
-
-function CreatePlayerBuildings()
-end
-
-function CreatePlayerUnits()
-CreateUnitsForPlayer1()
-end
-
-function CreateAllUnits()
-CreatePlayerBuildings()
-CreatePlayerUnits()
+return true
 end
 
 function Trig_Untitled_Trigger_001_Actions()
@@ -29,6 +14,7 @@ end
 
 function InitTrig_Untitled_Trigger_001()
 gg_trg_Untitled_Trigger_001 = CreateTrigger()
+TriggerAddCondition(gg_trg_Untitled_Trigger_001, Condition(Trig_Untitled_Trigger_001_Conditions))
 TriggerAddAction(gg_trg_Untitled_Trigger_001, Trig_Untitled_Trigger_001_Actions)
 end
 
@@ -55,7 +41,6 @@ NewSoundEnvironment("Default")
 SetAmbientDaySound("LordaeronSummerDay")
 SetAmbientNightSound("LordaeronSummerNight")
 SetMapMusic("Music", true, 0)
-CreateAllUnits()
 InitBlizzard()
 InitGlobals()
 InitCustomTriggers()

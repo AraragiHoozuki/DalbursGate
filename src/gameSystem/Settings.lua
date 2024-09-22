@@ -13,3 +13,7 @@ TAG.RACE = {
 -- CommonAbilities
 CommonAbilitiy = {}
 CommonAbilitiy.Invisibility = FourCC('A001')
+CommonAbilitiy.AttackSpeed = FourCC('A00J')
+CommonAbilitiy.MoveSpeed = FourCC('A00K')
+CommonAbilitiy.Sleep = FourCC('A00L')
+CommonAbilitiy.SleepBuff = FourCC('BUsl')

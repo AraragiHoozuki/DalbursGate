@@ -20,7 +20,7 @@ Displace.OVERLAY_METHOD.STOP_EXISTINGS = 1 -- 强制停止其他位移
 Displace.OVERLAY_METHOD.STOP_SELF = 2 -- 有其他位移时停止本位移
 Displace.OVERLAY_METHOD.STOP_EXISTINGS_IF_FAILED_STOP_SELF = 3 -- 停止已有位移，但如果已有位移不可停止，则停止自身
 
-function Displace:new(o)
+function Displace:ctor(o)
     o = o or {}
     setmetatable(o, self)
     self.__index = self

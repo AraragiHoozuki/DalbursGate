@@ -1,7 +1,7 @@
 require('gameSystem.Settings')
 require('gameSystem.DamageSystem')
 require('gameSystem.UnitDisplaceSystem')
-require('gameSystem.LuaUnitSystem')
+require('gameSystem.UnitWrapperSystem')
 require('gameSystem.ModifierSystem')
 require('gameSystem.ProjectilSystem')
 require('gameSystem.MapObjectSystem')
@@ -11,7 +11,7 @@ require('gameSystem.MapObjectSystem')
 do
     local RangedAttackTrigger = CreateTrigger()
     TriggerRegisterAnyUnitEventBJ(RangedAttackTrigger, EVENT_PLAYER_UNIT_ATTACKED)
-    local cond = Condition(function() 
+    local cond = Condition(function()
         return IsUnitType(GetAttacker(),UNIT_TYPE_RANGED_ATTACKER) == true
     end)
     TriggerAddCondition(RangedAttackTrigger, cond)
@@ -20,21 +20,18 @@ do
         if (Master.DefaultAttackProjectil[GetUnitTypeId(u)]==nil) then
             local settings = {
                 model = BlzGetUnitWeaponStringField(u, UNIT_WEAPON_SF_ATTACK_PROJECTILE_ART, 0),
-                velocity = BlzGetUnitWeaponRealField(u, UNIT_WEAPON_RF_ATTACK_PROJECTILE_SPEED, 0),
-                velocityZ = 0,
-                velocityZMax = 99999,
+                speed = BlzGetUnitWeaponRealField(u, UNIT_WEAPON_RF_ATTACK_PROJECTILE_SPEED, 0),
                 no_gravity = false,
-                hit_range = 50,
-                hit_rangeZ = 60,
+                hit_range = 25,
                 hit_terrain = true,
-                hit_other = true,
-                hit_ally = false,
+                hit_other = false,
+                hit_ally = true,
                 hit_piercing = false,
                 hit_cooldown = 1,
                 track_type = Projectil.TRACK_TYPE_UNIT,
-                trackZ = false,
                 tracking_angle = 60 * math.degree,
                 turning_speed = 60 * math.degree,
+                turning_speed_pitch = 3 * math.degree,
                 max_flying_distance = 3000,
                 offsetX = 0,
                 offsetY = 60,
@@ -55,14 +52,13 @@ do
     end)
     TriggerAddCondition(RangeAttackDamageTrigger, cond2)
     TriggerAddAction(RangeAttackDamageTrigger, function()
-        local lu1 = LuaUnit.Get(GetEventDamageSource())
+        local uw = UnitWrapper.Get(GetEventDamageSource())
         local target = GetTriggerUnit()
-        if (Master.DefaultAttackProjectil[GetUnitTypeId(lu1.unit)]~=nil) then 
-            ProjectilMgr.CreateAttackProjectil(lu1,target,GetEventDamage()) 
+        if (Master.DefaultAttackProjectil[GetUnitTypeId(uw.unit)]~=nil) then 
+            ProjectilMgr.CreateAttackProjectil(uw,target,GetEventDamage())
             BlzSetEventDamage(0)
-            
         else
-            local dmg = Damage:new(nil, lu1, LuaUnit.Get(target), GetEventDamage(), Damage.ATTACK_TYPE_MELEE)
+            local dmg = Damage:new(nil, uw, UnitWrapper.Get(target), GetEventDamage(), Damage.ATTACK_TYPE_MELEE)
             BlzSetEventDamage(0)
             dmg:Resolve()
         end

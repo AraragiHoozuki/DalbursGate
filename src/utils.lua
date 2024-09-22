@@ -142,6 +142,13 @@ function Vector2:new(o, x, y)
     o.y = y
     return o
 end
+---@return Vector2
+function Vector2:ctor(o)
+    o = o or {}
+    setmetatable(o, self)
+    self.__index = self
+    return o
+end
 
 --- Calc distance of vector2 to coordinates
 ---@param x number
@@ -168,6 +175,24 @@ function Vector3:new(o, x, y, z)
     o.y = y or 0
     o.z = z or 0
     return o
+end
+---@return Vector3
+function Vector3:ctor(o)
+    o = o or {}
+    setmetatable(o, self)
+    self.__index = self
+    return o
+end
+function Vector3:MoveTo(x, y, z)
+    if (x ~= nil) then self.x = x end
+    if (y ~= nil) then self.y = y end
+    if (z ~= nil) then self.z = z end
+end
+function Vector3:NormXY()
+    return math.sqrt(self.x*self.x + self.y*self.y)
+end
+function Vector3:Norm()
+    return math.sqrt(self.x*self.x + self.y*self.y + self.z*self.z)
 end
 function Vector3:Distance(x, y)
     return math.sqrt((x - self.x)^2 + (y - self.y)^2)
