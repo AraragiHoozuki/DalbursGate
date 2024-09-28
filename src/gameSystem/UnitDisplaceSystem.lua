@@ -46,12 +46,17 @@ end
 function Displace:UpdateTimeAndDistance()
     self.velocity.x = self.velocity.x + self.accelerate.x * CoreTicker.Interval
     self.velocity.y = self.velocity.y + self.accelerate.y * CoreTicker.Interval
+    self.velocity.z = self.velocity.z + self.accelerate.z * CoreTicker.Interval
     self.distance = self.distance + math.sqrt(self.velocity.x * self.velocity.x + self.velocity.y * self.velocity.y) * CoreTicker.Interval
     self.duration = self.duration + CoreTicker.Interval
     self.delta_time = self.delta_time + CoreTicker.Interval
     if (self.max_distance > 0 and self.distance >= self.max_distance) or (self.max_duration > 0 and self.duration >= self.max_duration) then
         self.finished = true
     end
+end
+
+function Displace:Clear()
+    self.finished = true
 end
 
 function Displace:Stop()

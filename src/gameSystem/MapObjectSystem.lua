@@ -1,4 +1,5 @@
 require('utils')
+require('gameSystem.EntitySystem')
 
 MapObjectMgr = {}
 ---@type table<string, MapObject>
@@ -20,13 +21,31 @@ end
 
 --------------------------------------------------------
 ---@class MapObject
-MapObject={}
-MapObject.tempLoc = Location(0, 0)
+MapObject = Entity:ctor{}
 
 MapObject.Create = function(lu_creator, position, model, duration, awake_handlers)
     local obj = MapObject:new(nil, lu_creator, position, model, duration, awake_handlers)
     MapObjectMgr.Objects[obj.uuid] = obj
     return obj
+end
+
+
+---@return MapObject
+function MapObject:ctor(x, y, z, yaw, model_path, duration, awake_handler)
+    local o = Entity:ctor(nil)
+    setmetatable(o, self)
+    self.__index = self
+    o.yaw = yaw
+    o.awake_handlers = {awake_handler}
+    o.update_handlers = {}
+    o.remove_handlers = {}
+    z = Entity.GetLocationZ(x, y) + z
+    o.position:MoveTo(x,y,z)
+    o:CreateModel(model_path)
+    o.duration = duration
+    MapObjectMgr.Instances[o.uuid] = o
+    o:Awake()
+    return o
 end
 
 ---@param o MapObject
@@ -52,27 +71,43 @@ function MapObject:new(o, lu_creator, position, model, duration, awake_handlers)
     o.finished = false
     --init Z
     MoveLocation(MapObject.tempLoc, o.position.x, o.position.y)
-    o.position.z = GetLocationZ(MapObject.tempLoc) + o.position.z
+    o.position.z = Entity.GetLocationZ(Entity.tempLoc) + o.position.z
     o:CreateModel()
     o:Awake()
     return o
 end
 
-function MapObject:AddUpdateHandler(func)
-    table.insert(self.update_handlers, func)
+function MapObject:AddUpdateHandler(func, interval)
+    interval = interval or CoreTicker.Interval
+    table.insert(self.update_handlers, {
+        func = func, 
+        interval = interval,
+        elapsed_time = 0
+    })
 end
 function MapObject:AddDestroyHandler(func)
     table.insert(self.remove_handlers, func)
 end
-function MapObject:CreateModel()
+
+function MapObject:CreateModel(path)
+    if (path ~= nil) then
+        self.model = AddSpecialEffect(path, self.position.x, self.position.y)
+        BlzSetSpecialEffectZ(self.model, self.position.z)
+    end
+end
+function MapObject:ScaleModel(scale)
+    scale = scale or 1
     if (self.model ~= nil) then
-        self.effect = AddSpecialEffect(self.model, self.position.x, self.position.y)
-        BlzSetSpecialEffectZ(self.effect, self.position.z)
+        BlzSetSpecialEffectScale(self.model, scale)
     end
 end
 function MapObject:Update()
     for _,h in pairs(self.update_handlers) do
-        h(self)
+        h.elapsed_time = h.elapsed_time + CoreTicker.Interval
+        if (h.elapsed_time > h.interval) then
+            h.elapsed_time = h.elapsed_time - h.interval
+            h.func(self, h.interval)
+        end
     end
     if (self.duration ~= -1) then
         self.duration = self.duration - CoreTicker.Interval
@@ -87,8 +122,8 @@ function MapObject:Awake()
     end
 end
 function MapObject:Destroy()
-    if (self.effect ~= nil) then
-        DestroyEffect(self.effect)
+    if (self.model ~= nil) then
+        DestroyEffect(self.model)
     end
     for _,h in pairs(self.remove_handlers) do
         h(self)

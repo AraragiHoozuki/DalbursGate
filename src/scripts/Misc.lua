@@ -39,8 +39,6 @@ AbilityScripts.BOUNCING_INFERNAL = {
     AbilityId = FourCC('A00D'),
     Cast = function()
         local caster = UnitWrapper.Get(GetTriggerUnit())
-        TimerStart(CreateTimer(), 0.1, true, function()
-        end)
         local tloc = Vector3:ctor {
             x = GetSpellTargetX(),
             y = GetSpellTargetY(),
@@ -52,6 +50,35 @@ AbilityScripts.BOUNCING_INFERNAL = {
             target_position = tloc,
             settings = Master.Projectil.BOUNCING_INFERNAL
         }
+        local uuid = GUID.generate()
+
+        -- local pitch = math.pi/2
+        -- local x = GetUnitX(caster.unit)
+        -- local y =  GetUnitY(caster.unit)
+        -- local dx = GetSpellTargetX()-x
+        -- local dy = GetSpellTargetY()-y
+        -- local dis = math.sqrt(dx*dx + dy*dy)
+        -- local h = dis
+        -- local model = AddSpecialEffect([[Abilities\Spells\Human\StormBolt\StormBoltMissile.mdl]], x, y)
+        -- local yaw = math.atan(dy, dx)
+        -- local uuid = GUID.generate()
+        -- BlzSetSpecialEffectScale(model, 2)
+        -- BlzSetSpecialEffectYaw(model, yaw)
+        -- BlzSetSpecialEffectZ(model, Projectil.GetLocationZ(x,y) + h)
+        -- CoreTicker.AttachAction(function(interval)
+        --     pitch = pitch - 270 * math.degree * interval
+        --     local xy_dis = h * Cos(pitch)
+        --     local new_x = x + xy_dis * Cos(yaw)
+        --     local new_y = y + xy_dis * Sin(yaw)
+        --     local new_z = Projectil.GetLocationZ(x,y) + h * Sin(pitch)
+        --     BlzSetSpecialEffectPosition(model, new_x, new_y, new_z)
+        --     BlzSetSpecialEffectPitch(model, -pitch)
+        --     if (new_z < Projectil.GetLocationZ(new_x, new_y)) then
+        --         DestroyEffect(model)
+        --         DestroyEffect(AddSpecialEffect([[Abilities\Spells\Human\Thunderclap\ThunderClapCaster.mdl]], new_x, new_y))
+        --         CoreTicker.DetachAction(uuid)
+        --     end
+        -- end, CoreTicker.Interval, uuid)
     end
 }
 Master.Projectil.BOUNCING_INFERNAL = {
@@ -118,8 +145,8 @@ Master.Projectil.BOUNCING_INFERNAL = {
         end)
         GroupEnumUnitsInRange(Projectil.tempGroup, this.position.x, this.position.y, 300, cond)
         DestroyBoolExpr(cond)
-        local u = CreateUnit(GetOwningPlayer(this.emitter.unit), FourCC('n000'), this.position.x, this.position.y, this.yaw * math.degree)
-        SetUnitAnimation(u, 'Birth')
+        -- local u = CreateUnit(GetOwningPlayer(this.emitter.unit), FourCC('n000'), this.position.x, this.position.y, this.yaw * math.degree)
+        -- SetUnitAnimation(u, 'Birth')
         if (this.CustomValues.BounceCount >= 3) then
             this:End()
         end
@@ -247,5 +274,55 @@ Master.Modifier.SLEEPINESS_SETS_IN = {
             end
             this:AddStack(-1)
         end
+    end
+}
+
+
+--断空
+AbilityScripts.SPACE_CUT_CIRCLE = {
+    AbilityId = FourCC('A00N'),
+    Cast = function()
+        local caster = UnitWrapper.Get(GetTriggerUnit())
+        local x = GetSpellTargetX()
+        local y = GetSpellTargetY()
+        local mo = MapObject:ctor(x,y,10,0,[[Abilities\Spells\Orc\Voodoo\VoodooAura.mdl]],30,nil)
+        mo:ScaleModel(1.2)
+        mo:AddUpdateHandler(
+            ---@param this MapObject
+            function(this)
+                for _,prjt in pairs(ProjectilMgr.Instances) do
+                    local d = this.position:DistanceTo(prjt.position)
+                    if (d<=240 and d >= 200) then
+                        local p2c = math.atan(this.position.y - prjt.position.y, this.position.x-prjt.position.x)
+                        local a = math.angleDiff(p2c, prjt.yaw)
+                        
+                        if (a<math.pi/2 and a > -math.pi/2) then
+                            local eff
+                            eff = AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkCaster.mdl]], prjt.position.x, prjt.position.y)
+                            BlzSetSpecialEffectZ(eff, prjt.position.z)
+                            DestroyEffect(eff)
+                            prjt:MoveTo(
+                                prjt.position.x + (this.position.x - prjt.position.x) * 2,
+                                prjt.position.y + (this.position.y - prjt.position.y) * 2
+                            )
+                            eff = AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkTarget.mdl]], prjt.position.x, prjt.position.y)
+                            BlzSetSpecialEffectZ(eff, prjt.position.z)
+                            DestroyEffect(eff)
+                        end
+                    end
+                end
+            end
+        )
+        local v = 1000
+        local t = 2 * v / GameConstants.Gravity
+        local a = - v / t
+        caster:AddDisplace(Displace:ctor{
+            velocity = Vector3:new(nil, v, 0, v),
+            accelerate = Vector3:new(nil, a, 0, 0),
+            max_distance = 0,
+            max_duration = t,
+            interruptible = true,
+            interrupt_action = true,
+        })
     end
 }

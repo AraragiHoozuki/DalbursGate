@@ -68,6 +68,8 @@ function UnitWrapper:ctor(unit)
     o.unit = unit
     o.modifiers = {}
     o.displaces = {}
+    o.defaultFlyHeight = GetUnitFlyHeight(unit)
+    o:InitGravityDisplace()
     o:InitCommonAbilities()
     return o
 end
@@ -91,15 +93,34 @@ function UnitWrapper:AddAttackSpeed(value)
     DecUnitAbilityLevel(self.unit, CommonAbilitiy.AttackSpeed)
 end
 
+function UnitWrapper:InitGravityDisplace()
+    self.gravityDisplace = Displace:ctor{
+        velocity = Vector3:new(nil, 0, 0, 0),
+        accelerate = Vector3:new(nil, 0, 0, -GameConstants.Gravity),
+        max_distance = 0,
+        max_duration = 0,
+        interruptible = false,
+        interrupt_action = false,
+    }
+end
+
 function UnitWrapper:Update()
     self:UpdateModifiers()
     self:UpdateDisplaces()
 end
 
+function UnitWrapper:EnableHeightChange()
+    if (self.height_change_enabled ~= true) then
+        UnitAddAbility(self.unit, FourCC('Arav'))
+        UnitRemoveAbility(self.unit, FourCC('Arav'))
+        self.height_change_enabled =  true
+    end
+end
+
 function UnitWrapper:UpdateDisplaces()
-    if (#(self.displaces)) == 0 then return end
     local x = GetUnitX(self.unit)
     local y = GetUnitY(self.unit)
+    local z = Entity.GetUnitZ(self.unit)
     for i = #(self.displaces), 1, -1 do
         local d = self.displaces[i]
         if d.finished then
@@ -108,11 +129,20 @@ function UnitWrapper:UpdateDisplaces()
             if d.interrupt_action then 
                 IssueImmediateOrderById(self.unit, 851972) -- stop order
             end
-            x, y = d:Calc(x, y, 0)
+            x, y, z = d:Calc(x, y, z)
         end
+    end
+    local height = z - Entity.GetLocationZ(x,y)
+    if height > self.defaultFlyHeight + 1 then
+        x, y, z = self.gravityDisplace:Calc(x, y, z)
+    else
+        self.gravityDisplace.velocity.z = 0
+        z = Entity.GetLocationZ(x,y) + self.defaultFlyHeight
     end
     SetUnitX(self.unit, x)
     SetUnitY(self.unit, y)
+    self:EnableHeightChange()
+    SetUnitFlyHeight(self.unit, z - Entity.GetLocationZ(x,y), 0)
 end
 
 function UnitWrapper:AddDisplace(d)

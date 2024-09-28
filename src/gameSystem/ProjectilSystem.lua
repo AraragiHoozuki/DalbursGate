@@ -3,14 +3,14 @@ require('gameSystem.EntitySystem')
 
 ProjectilMgr = {}
 ---@type table<string, Projectil>
-ProjectilMgr.Projectils = {}
+ProjectilMgr.Instances = {}
 
 ProjectilMgr.Update = function()
-    for k,v in pairs(ProjectilMgr.Projectils) do
+    for k,v in pairs(ProjectilMgr.Instances) do
         if v ~= nil then
             v:Update()
             if (v.ended == true) then
-                ProjectilMgr.Projectils[k] = nil
+                ProjectilMgr.Instances[k] = nil
                 v:Remove()
             end
         end
@@ -92,7 +92,7 @@ function Projectil:ctor(obj)
     if (settings.model_scale ~= nil) then
         BlzSetSpecialEffectScale(obj.model, settings.model_scale)
     end
-    ProjectilMgr.Projectils[obj.uuid] = obj
+    ProjectilMgr.Instances[obj.uuid] = obj
     if (settings.OnCreate ~= nil ) then
         settings.OnCreate(obj)
     end
@@ -162,7 +162,7 @@ function Projectil:InitAttitude()
     x = offsetY * Cos(yaw) - offsetX * Sin(yaw) + x
     y = offsetY * Sin(yaw) + offsetX * Cos(yaw) + y
     
-    self.position = Vector3:ctor{x = x, y = y, z=z}
+    self.position:MoveTo(x,y,z)
     local dxy = math.sqrt(dx*dx + dy*dy)
     if (self.no_gravity == false) then
         local g = -GameConstants.Gravity

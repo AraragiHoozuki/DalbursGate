@@ -12,6 +12,7 @@ AbilityCastDict = {
     [FourCC('A00D')] = 'BOUNCING_INFERNAL',
     [FourCC('A00I')] = 'SPAWN_TEST_UNITS',
     [FourCC('A00M')] = 'SLEEPINESS_SETS_IN',
+    [FourCC('A00N')] = 'SPACE_CUT_CIRCLE',
 }
 
 AbilityIntrinsecModDict = {

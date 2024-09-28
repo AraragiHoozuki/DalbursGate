@@ -3,12 +3,15 @@ CoreTicker._timer = nil
 CoreTicker._stamp = 0
 CoreTicker.Interval = 1/60
 CoreTicker.DelayedActions = {}
+CoreTicker.AttachedActions = {}
 
 function CoreTicker._tick()
     CoreTicker._stamp = CoreTicker._stamp + 1
     UnitMgr.Update()
     ProjectilMgr.Update()
+    MapObjectMgr.Update()
     CoreTicker.DoDelayedActions()
+    CoreTicker.DoAttachedActions()
 end
 
 function CoreTicker.RegisterDelayedAction(action, delay_time)
@@ -26,6 +29,36 @@ function CoreTicker.DoDelayedActions()
             act()
         end
         CoreTicker.DelayedActions[CoreTicker._stamp] = nil
+    end
+end
+
+function CoreTicker.AttachAction(action, interval, id)
+    if (CoreTicker.AttachedActions[id] == nil) then
+        CoreTicker.AttachedActions[id] = {
+            func = action,
+            interval = interval,
+            elapsed = 0
+        }
+    else
+        print('action attach failed: same id')
+    end
+end
+
+function CoreTicker.DoAttachedActions()
+    for id,act in pairs(CoreTicker.AttachedActions) do
+        act.elapsed = act.elapsed + CoreTicker.Interval
+        if (act.elapsed > act.interval) then
+            act.elapsed = act.elapsed - act.interval
+            act.func(act.interval)
+        end
+    end
+end
+
+function CoreTicker.DetachAction(id)
+    if (CoreTicker.AttachedActions[id] == nil) then
+        print('action detach failed: id not found')
+    else
+        CoreTicker.AttachedActions[id] = nil
     end
 end
 

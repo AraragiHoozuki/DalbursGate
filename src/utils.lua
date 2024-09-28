@@ -200,3 +200,11 @@ end
 function Vector3:Distance3D(x, y, z)
     return math.sqrt((x - self.x)^2 + (y - self.y)^2 + (z - self.z)^2)
 end
+---@param vector Vector3
+function Vector3:DistanceTo(vector)
+    return self:Distance(vector.x, vector.y)
+end
+---@param vector Vector3
+function Vector3:DistanceTo3D(vector)
+    return self:Distance3D(vector.x, vector.y, vector.z)
+end
