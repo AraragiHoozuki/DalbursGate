@@ -281,48 +281,75 @@ Master.Modifier.SLEEPINESS_SETS_IN = {
 --断空
 AbilityScripts.SPACE_CUT_CIRCLE = {
     AbilityId = FourCC('A00N'),
+    UseWallShape = true,
+    Duration = 30,
     Cast = function()
+        if AbilityScripts.SPACE_CUT_CIRCLE.UseWallShape == true then
+            AbilityScripts.SPACE_CUT_CIRCLE.CastWallShape()
+        else
+            AbilityScripts.SPACE_CUT_CIRCLE.CastCircle()
+        end
+    end,
+    CastWallShape = function()
         local caster = UnitWrapper.Get(GetTriggerUnit())
+        local x0 = GetUnitX(caster.unit)
+        local y0 = GetUnitY(caster.unit)
         local x = GetSpellTargetX()
         local y = GetSpellTargetY()
-        local mo = MapObject:ctor(x,y,10,0,[[Abilities\Spells\Orc\Voodoo\VoodooAura.mdl]],30,nil)
+        local direction = math.atan(y - y0, x - x0)
+        local front = MapObject:ctor(x0 + 100 * Cos(direction), y0 + 100 * Sin(direction), 0, direction, [[Doodads\Dungeon\Props\Forcewall\Forcewall]], AbilityScripts.SPACE_CUT_CIRCLE.Duration)
+        local back = MapObject:ctor(x0 - 100 * Cos(direction), y0 - 100 * Sin(direction), 0, direction + math.pi, [[Doodads\Dungeon\Props\Forcewall\Forcewall]], AbilityScripts.SPACE_CUT_CIRCLE.Duration)
+        local update = function(this)
+            for _,prjt in pairs(ProjectilMgr.Instances) do
+                local theta = math.atan(-this.position.y + prjt.position.y, -this.position.x + prjt.position.x)
+                local dis = this.position:DistanceTo(prjt.position)
+                local dy = Sin(math.angleDiff(math.pi/2, (this.yaw - theta))) * dis
+                local dx = Cos(math.angleDiff(math.pi/2, (this.yaw - theta))) * dis
+                if (math.abs(dx) <= 300 and math.abs(dy) <= 10 and math.abs(math.angleDiff(this.yaw + math.pi, prjt.yaw))<= math.pi/2) then
+                    local eff
+                    eff = AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkCaster.mdl]], prjt.position.x, prjt.position.y)
+                    DestroyEffect(eff)
+                    prjt:MoveTo(prjt.position.x - 200 * Cos(this.yaw), 
+                    prjt.position.y - 200 * Sin(this.yaw))
+                    eff = AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkTarget.mdl]], prjt.position.x, prjt.position.y)
+                    BlzSetSpecialEffectZ(eff, prjt.position.z)
+                    DestroyEffect(eff)
+                end
+            end
+        end
+        front:AddUpdateHandler(update)
+        back:AddUpdateHandler(update)
+    end,
+    CastCircle = function(this)
+        local caster = UnitWrapper.Get(GetTriggerUnit())
+        local x0 = GetUnitX(caster.unit)
+        local y0 = GetUnitY(caster.unit)
+        local x = GetSpellTargetX()
+        local y = GetSpellTargetY()
+        local mo = MapObject:ctor(x,y,10,0,[[Abilities\Spells\Orc\Voodoo\VoodooAura.mdl]],30)
         mo:ScaleModel(1.2)
-        mo:AddUpdateHandler(
-            ---@param this MapObject
-            function(this)
-                for _,prjt in pairs(ProjectilMgr.Instances) do
-                    local d = this.position:DistanceTo(prjt.position)
-                    if (d<=240 and d >= 200) then
-                        local p2c = math.atan(this.position.y - prjt.position.y, this.position.x-prjt.position.x)
-                        local a = math.angleDiff(p2c, prjt.yaw)
-                        
-                        if (a<math.pi/2 and a > -math.pi/2) then
-                            local eff
-                            eff = AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkCaster.mdl]], prjt.position.x, prjt.position.y)
-                            BlzSetSpecialEffectZ(eff, prjt.position.z)
-                            DestroyEffect(eff)
-                            prjt:MoveTo(
-                                prjt.position.x + (this.position.x - prjt.position.x) * 2,
-                                prjt.position.y + (this.position.y - prjt.position.y) * 2
-                            )
-                            eff = AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkTarget.mdl]], prjt.position.x, prjt.position.y)
-                            BlzSetSpecialEffectZ(eff, prjt.position.z)
-                            DestroyEffect(eff)
-                        end
+        mo:AddUpdateHandler(function(this)
+            for _,prjt in pairs(ProjectilMgr.Instances) do
+                local d = this.position:DistanceTo(prjt.position)
+                if (d<=240 and d >= 200) then
+                    local p2c = math.atan(this.position.y - prjt.position.y, this.position.x-prjt.position.x)
+                    local a = math.angleDiff(p2c, prjt.yaw)
+                    
+                    if (a<math.pi/2 and a > -math.pi/2) then
+                        local eff
+                        eff = AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkCaster.mdl]], prjt.position.x, prjt.position.y)
+                        BlzSetSpecialEffectZ(eff, prjt.position.z)
+                        DestroyEffect(eff)
+                        prjt:MoveTo(
+                            prjt.position.x + (this.position.x - prjt.position.x) * 2,
+                            prjt.position.y + (this.position.y - prjt.position.y) * 2
+                        )
+                        eff = AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkTarget.mdl]], prjt.position.x, prjt.position.y)
+                        BlzSetSpecialEffectZ(eff, prjt.position.z)
+                        DestroyEffect(eff)
                     end
                 end
             end
-        )
-        local v = 1000
-        local t = 2 * v / GameConstants.Gravity
-        local a = - v / t
-        caster:AddDisplace(Displace:ctor{
-            velocity = Vector3:new(nil, v, 0, v),
-            accelerate = Vector3:new(nil, a, 0, 0),
-            max_distance = 0,
-            max_duration = t,
-            interruptible = true,
-            interrupt_action = true,
-        })
+        end)
     end
 }

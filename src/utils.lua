@@ -183,6 +183,13 @@ function Vector3:ctor(o)
     self.__index = self
     return o
 end
+function Vector3:Clone()
+    return Vector3:ctor{
+        x = self.x,
+        y = self.y,
+        z = self.z
+    }
+end
 function Vector3:MoveTo(x, y, z)
     if (x ~= nil) then self.x = x end
     if (y ~= nil) then self.y = y end
@@ -207,4 +214,11 @@ end
 ---@param vector Vector3
 function Vector3:DistanceTo3D(vector)
     return self:Distance3D(vector.x, vector.y, vector.z)
+end
+
+function Vector3:RotateAboutXY(rad, x, y)
+    local dx = self.x - x
+    local dy = self.y - y
+    self.x = x + dx * Cos(rad) - dy * Sin(rad)
+    self.y = y + dy * Cos(rad) + dx * Sin(rad)
 end

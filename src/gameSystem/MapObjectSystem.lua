@@ -86,13 +86,16 @@ function MapObject:AddUpdateHandler(func, interval)
     })
 end
 function MapObject:AddDestroyHandler(func)
-    table.insert(self.remove_handlers, func)
+    if (func ~= nil) then
+        table.insert(self.remove_handlers, func)
+    end
 end
 
 function MapObject:CreateModel(path)
     if (path ~= nil) then
         self.model = AddSpecialEffect(path, self.position.x, self.position.y)
         BlzSetSpecialEffectZ(self.model, self.position.z)
+        BlzSetSpecialEffectYaw(self.model, self.yaw)
     end
 end
 function MapObject:ScaleModel(scale)
