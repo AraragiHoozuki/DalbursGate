@@ -45,22 +45,23 @@ do
         BlzSetUnitWeaponRealField(u, UNIT_WEAPON_RF_ATTACK_PROJECTILE_SPEED, 0,99999)
     end)
 
+    
     local RangeAttackDamageTrigger = CreateTrigger()
     TriggerRegisterAnyUnitEventBJ(RangeAttackDamageTrigger, EVENT_PLAYER_UNIT_DAMAGED)
     local cond2 = Condition(function() 
-        return BlzGetEventIsAttack() == true
+        if BlzGetEventIsAttack() == true then
+            local uw = UnitWrapper.Get(GetEventDamageSource())
+            local target = GetTriggerUnit()
+            if (Master.DefaultAttackProjectil[GetUnitTypeId(uw.unit)]~=nil) then 
+                ProjectilMgr.CreateAttackProjectil(uw,target,GetEventDamage())
+                BlzSetEventDamage(0)
+            else
+                local dmg = Damage:new(nil, uw, UnitWrapper.Get(target), GetEventDamage(), Damage.ATTACK_TYPE_MELEE)
+                BlzSetEventDamage(0)
+                dmg:Resolve()
+            end
+        end
+        return false
     end)
     TriggerAddCondition(RangeAttackDamageTrigger, cond2)
-    TriggerAddAction(RangeAttackDamageTrigger, function()
-        local uw = UnitWrapper.Get(GetEventDamageSource())
-        local target = GetTriggerUnit()
-        if (Master.DefaultAttackProjectil[GetUnitTypeId(uw.unit)]~=nil) then 
-            ProjectilMgr.CreateAttackProjectil(uw,target,GetEventDamage())
-            BlzSetEventDamage(0)
-        else
-            local dmg = Damage:new(nil, uw, UnitWrapper.Get(target), GetEventDamage(), Damage.ATTACK_TYPE_MELEE)
-            BlzSetEventDamage(0)
-            dmg:Resolve()
-        end
-    end)
 end

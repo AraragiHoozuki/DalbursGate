@@ -74,6 +74,7 @@ function Damage:new(o, lu_source, lu_target, amount, atktype, dmgtype, eletype)
   o.control_rate = 0 --倍率、加法叠加
   o.control_scale = 1 --倍率、乘法叠加
   o.control_add_after = 0
+  o.amount_before_control = o.amount
   return o
 end
 
@@ -83,6 +84,7 @@ function Damage:ctor(o)
   o = o or {}
   setmetatable(o, self)
   self.__index = self
+  o.amount_before_control = o.amount
   return o
 end
 
@@ -97,7 +99,6 @@ function Damage:PreApply()
 end
 
 function Damage:Control()
-  self.amount_before_control = self.amount
   local amt = self.amount
   if (self.control_add_before ~= nil) then
     amt = amt + self.control_add_before
@@ -124,7 +125,6 @@ function Damage:Control()
 end
 
 function Damage:Apply()
-
   if (self.dmgtype == Damage.DAMAGE_TYPE_HEAL) then
     Damage.ApplyDirectDamage(self.target.unit, -self.amount)
   else

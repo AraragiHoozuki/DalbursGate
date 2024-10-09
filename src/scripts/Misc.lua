@@ -320,7 +320,7 @@ AbilityScripts.SPACE_CUT_CIRCLE = {
         front:AddUpdateHandler(update)
         back:AddUpdateHandler(update)
     end,
-    CastCircle = function(this)
+    CastCircle = function()
         local caster = UnitWrapper.Get(GetTriggerUnit())
         local x0 = GetUnitX(caster.unit)
         local y0 = GetUnitY(caster.unit)

@@ -49,7 +49,7 @@ Projectil.GetLocationZ = function(x, y)
     MoveLocation(Projectil.tempLoc, x, y)
     return GetLocationZ(Projectil.tempLoc)
 end
-
+---@return Projectil
 function Projectil:ctor(obj)
     obj = Entity:ctor(obj)
     setmetatable(obj, self)
@@ -57,12 +57,13 @@ function Projectil:ctor(obj)
 
     local settings = obj.settings
     local speed = settings.speed
+    obj.level = settings.level or 1
     obj.speed = speed
     obj.velocity = Vector3:ctor{}
     obj.no_gravity = settings.no_gravity or false
     obj.hit_range = settings.hit_range or 25
     obj.hit_range_2 = obj.hit_range * obj.hit_range
-    obj.hit_terrainQ = settings.hit_terrainQ or true
+    obj.hit_terrainQ = settings.hit_terrain
     obj.hit_other = settings.hit_other == true
     obj.hit_ally = settings.hit_ally == true
     obj.hit_piercing = settings.hit_piercing == true
@@ -72,8 +73,9 @@ function Projectil:ctor(obj)
     obj.tracking_angle = settings.tracking_angle or -1
     obj.turning_speed = settings.turning_speed or 0
     obj.turning_speed_pitch = settings.turning_speed or 0
-    obj.max_flying_distance = settings.max_flying_distance or speed * 5
+    obj.max_flying_distance = settings.max_flying_distance or speed* 5
     obj.model_path = settings.model or 'Abilities\\Weapons\\LichMissile\\LichMissile.mdl'
+    obj.update_interval = settings.update_interval or CoreTicker.Interval
 
     --properties
     obj.yaw = 0 --radians not degree
@@ -82,6 +84,7 @@ function Projectil:ctor(obj)
     obj.flying_distance = 0
     obj.tracking_stopped = false
     obj.hit_checker_group = CreateGroup()
+    obj.delta_time = 0
     obj.can_hit = true
     obj.paused = false
     obj.ended = false
@@ -118,6 +121,10 @@ function Projectil:Unpause()
 end
 function Projectil:Remove()
     DestroyGroup(self.hit_checker_group)
+    if (self.hideModelDeathAnimationQ == true) then
+        BlzSetSpecialEffectZ(self.model, -10000)
+        BlzPlaySpecialEffect()
+    end
     DestroyEffect(self.model)
 end
 function Projectil:HasTargetQ()
@@ -126,6 +133,13 @@ function Projectil:HasTargetQ()
     else
         return true
     end
+end
+function Projectil:ChangeModel(path)
+    DestroyEffect(self.model)
+    self.model = AddSpecialEffect(path, self.position.x, self.position.y)
+end
+function Projectil:HideModelDeathAnimation(v)
+    self.hideModelDeathAnimationQ = (v==true)
 end
 
 --- Tracking
@@ -138,7 +152,7 @@ function Projectil:InitAttitude()
     local offsetZ = self.offsetZ or settings.offsetZ or 0
     local x = self.x or GetUnitX(self.emitter.unit)
     local y = self.y or GetUnitY(self.emitter.unit)
-    local z = (self.z or 0) + Projectil.GetUnitZ(self.emitter.unit)
+    local z = self.z or Entity.GetUnitZ(self.emitter.unit)
     z = z + offsetZ
     -- set start yaw pitch
     local tx,ty,tz,dx,dy,dz,yaw,pitch
@@ -151,6 +165,7 @@ function Projectil:InitAttitude()
         ty = self.target_position.y
         tz = self.target_position.z
     else
+        self.position:MoveTo(x,y,z)
         self.yaw = GetUnitFacing(self.emitter.unit) / math.degree
         self.pitch = 0
         return
@@ -272,15 +287,22 @@ end
 
 function Projectil:Update()
     if (self.ended == true or self.paused == true) then return end
+    
     if (self.settings.CustomTrack~=nil) then
         self.settings.CustomTrack(self)
     else
         self:Track()
     end
+    self.delta_time = self.delta_time + CoreTicker.Interval
     self:UpdateVelocity()
     self:UpdateFlyingStatus()
     self:UpdateModel()
     self:CheckHit()
+    if (self.settings.Update ~= nil and self.delta_time >= self.update_interval) then
+        self.delta_time = self.delta_time - self.update_interval
+        self.settings.Update(self, self.update_interval)
+    end
+    self:CheckEnd()
 end
 
 function Projectil:DistanceToUnit(unit)
@@ -355,4 +377,10 @@ end
 
 function Projectil:Miss()
     self.tracking_stopped = true
+end
+
+function Projectil:CheckEnd()
+    if (self.max_flying_distance > 0 and self.flying_distance > self.max_flying_distance) then
+        self:End()
+    end
 end

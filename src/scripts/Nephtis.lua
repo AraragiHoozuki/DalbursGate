@@ -10,36 +10,43 @@ Master.Modifier.NEPHTIS_SOUL_CONVERT = {
     stack = 1,
     remove_on_death = false,
     tags = {},
+    BindAbility = FourCC('A00O'),
     Effects = {{
         model = [[Abilities\Spells\NightElf\TargetArtLumber\TargetArtLumber.mdl]],
         attach_point  = 'origin'
     }},
     ---@param this Modifier
-    Acquire = function(this)
-        this.apply_checker_group = CreateGroup()
-        this.CustomValues = {
-            DetectRange = 1200
-        }
+    OnAcquired = function(this)
+        this.CustomValues.DetectRange = 1200
+        this.CustomValues.Souls = {}
     end,
     ---@param this Modifier
     Update = function(this)
         local cond = Condition(function()
             local u = GetFilterUnit()
-            if (IsUnitType(u, UNIT_TYPE_DEAD)) then
+            if (IsUnitType(u, UNIT_TYPE_DEAD) and 
+            (not IsUnitType(u, UNIT_TYPE_MECHANICAL)) and 
+            (not IsUnitType(u, UNIT_TYPE_HERO))) then
                 local p = Projectil:ctor{
                     emitter = this.owner,
                     target_unit = this.owner.unit,
                     x = GetUnitX(u),
                     y = GetUnitY(u),
-                    z = 0,
+                    z = 100,
                     settings = Master.Projectil.NEPHTIS_SOUL_CONVERT_PRJT
                 }
-                p:ChangeModel([[]])
+                p:ChangeModel(GameHelper.UnitModelPathGetter:Get(u))
+                p:HideModelDeathAnimation(true)
+                BlzSetSpecialEffectAlpha(p.model, 80)
+                p.CustomValues.AbsorbedSoul = {
+                    name = GetUnitName(u),
+                    model = GameHelper.UnitModelPathGetter:Get(u)
+                }
                 UnitMgr.RemoveUnit(u)
             end
             return false
         end)
-        GroupEnumUnitsInRange(this.apply_checker_group, 
+        GroupEnumUnitsInRange(Entity.tempGroup, 
             GetUnitX(this.owner.unit), 
             GetUnitY(this.owner.unit), 
             this.CustomValues.DetectRange, cond
@@ -50,29 +57,39 @@ Master.Modifier.NEPHTIS_SOUL_CONVERT = {
 
 Master.Projectil.NEPHTIS_SOUL_CONVERT_PRJT = {
     model = [[Abilities\Weapons\NecromancerMissile\NecromancerMissile.mdl]],
-    scale = 1,
-    velocity = 400,
-    velocityZ = 0,
-    velocityZMax = 99999,
+    model_scale = 1,
+    speed = 400,
     no_gravity = true,
     hit_range = 50,
-    hit_rangeZ = 50,
-    hit_terrain = true,
+    hit_terrain = false,
     hit_other = false,
     hit_ally = false,
     hit_piercing = false,
     hit_cooldown = 1,
     track_type = Projectil.TRACK_TYPE_UNIT,
-    trackZ = true,
     tracking_angle = 360 * math.degree,
     turning_speed = 360 * math.degree,
+    turning_speed_pitch = 360 * math.degree,
     max_flying_distance = 99999,
     offsetX = 0,
     offsetY = 0,
     offsetZ = 0,
     LevelValues = {},
-    Hit = function(this)
-        this:End()
+    ---@param this Projectil
+    ---@param victim UnitWrapper
+    OnHit = function(this, victim)
+        DestroyEffect(AddSpecialEffectTarget([[Abilities\Spells\Undead\RaiseSkeletonWarrior\RaiseSkeleton.mdl]], victim.unit, 'origin'))
+        local m = victim:GetAffectedModifier('NEPHTIS_SOUL_CONVERT')
+        table.insert(m.CustomValues.Souls, this.CustomValues.AbsorbedSoul)
+        print(this.CustomValues.AbsorbedSoul.name)
+        local ability = BlzGetUnitAbility(victim.unit, Master.Modifier.NEPHTIS_SOUL_CONVERT.BindAbility)
+        local tooltip = '当周围的单位死亡时，吸收他们的灵魂，被吸收灵魂的单位无法复活。\n已经吸收的灵魂：'
+        for _,v in pairs(m.CustomValues.Souls) do
+            tooltip = tooltip..v.name
+        end
+        IncUnitAbilityLevel(victim.unit, Master.Modifier.NEPHTIS_SOUL_CONVERT.BindAbility)
+        BlzSetAbilityStringLevelField(ability, ABILITY_SLF_TOOLTIP_NORMAL_EXTENDED, 0, tooltip)
+        DecUnitAbilityLevel(victim.unit, Master.Modifier.NEPHTIS_SOUL_CONVERT.BindAbility)
     end
 }
 
@@ -84,8 +101,8 @@ Master.Projectil.NEPHTIS_SOUL_CONVERT_PRJT = {
 AbilityScripts.NEPHTIS_SOUL_LINK = {
     AbilityId = FourCC('A00H'),
     Cast = function()
-        local caster = LuaUnit.Get(GetTriggerUnit())
-        local target = LuaUnit.Get(GetSpellTargetUnit())
+        local caster = UnitWrapper.Get(GetTriggerUnit())
+        local target = UnitWrapper.Get(GetSpellTargetUnit())
         caster:ApplyModifierById('NEPHTIS_SOUL_LINK', target, AbilityScripts.NEPHTIS_SOUL_LINK.AbilityId)
     end
 }

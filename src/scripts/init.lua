@@ -2,7 +2,7 @@ AbilityScripts = {}
 AbilityScripts.AddAbilityWithIntrinsecModifier = function(u, abilityId)
     UnitAddAbility(u, abilityId)
     if AbilityIntrinsecModDict[abilityId] ~= nil then
-        for _,mid in ipairs(AbilitySystem.IntrinsecModifiers[abilityId]) do
+        for _,mid in ipairs(AbilityIntrinsecModDict[abilityId]) do
             UnitWrapper.Get(u):AcquireModifierById(mid, UnitWrapper.Get(u), abilityId)
         end
         
@@ -26,6 +26,7 @@ AbilityIntrinsecModDict = {
     [FourCC('A00A')] = {'PUSH_FIST'},
     [FourCC('A00B')] = {'STORM_FORCE_FIELD'},
     [FourCC('A00C')] = {'INFERNAL_FLAME'},
+    [FourCC('A00O')] = {'NEPHTIS_SOUL_CONVERT'},
     [FourCC('AUav')] = {'BLOOD_THIRST_AURA'},
 }
 
@@ -34,6 +35,8 @@ AbilityIntrinsecModDict = {
 --------------------------------------------------------------
 
 require('scripts.Misc')
+require('scripts.Nephtis')
+require('scripts.101FireWork')
 
 do -- Ability Cast Trigger
     local trigger = CreateTrigger()
@@ -41,6 +44,14 @@ do -- Ability Cast Trigger
         local code_name = GetSpellAbilityId()
         if (AbilityCastDict[code_name] ~= nil) then
             AbilityScripts[AbilityCastDict[code_name]].Cast()
+        else
+            for id,script in pairs(AbilityScripts) do
+                if (type(script) == 'table' and script.AbilityId == code_name) then
+                    AbilityCastDict[code_name] = id
+                    script.Cast()
+                    return false
+                end
+            end
         end
         return false
     end)
