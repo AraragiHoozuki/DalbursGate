@@ -1,13 +1,11 @@
 ---@class Damage
----@field source LuaUnit
----@field target LuaUnit
+---@field source UnitWrapper
 Damage = {
-  source = nil,
-  target = nil,
   amount = 0,
   atktype = 0,
   dmgtype = 0,
   eletype = 0,
+  source_prjt = nil,
   control_set = nil,
   control_caption_max = nil,
   control_caption_min = 0,
@@ -16,6 +14,17 @@ Damage = {
   control_scale = 1,
   control_add_after = 0
 }
+--[[ damage for copying
+damage = Damage:ctor {
+  amount = 100,
+  source = caster,
+  target = target,
+  atktype = Damage.ATTACK_TYPE_SPELL,
+  dmgtype = Damage.DAMAGE_TYPE_NORMAL,
+  eletype = Damage.ELEMENT_TYPE_PIERCE
+}
+]]--
+
 Damage.ATTACK_TYPE_UNKNOWN = 0
 Damage.ATTACK_TYPE_MELEE = 1 --近战攻击
 Damage.ATTACK_TYPE_PROJECTIL = 2 --远程攻击
@@ -31,12 +40,12 @@ Damage.ELEMENT_TYPE_NONE = 0
 Damage.ELEMENT_TYPE_PIERCE = 1 --穿刺
 Damage.ELEMENT_TYPE_SMASH = 2 --钝击
 Damage.ELEMENT_TYPE_SLASH = 3 --斩击
-Damage.ELEMENT_TYPE_THERMO = 4 --热
-Damage.ELEMENT_TYPE_KRYO = 5 --冷
-Damage.ELEMENT_TYPE_ELECTRIC = 6 --电
+Damage.ELEMENT_TYPE_THERMO = 4 --灼热
+Damage.ELEMENT_TYPE_KRYO = 5 --寒冷
+Damage.ELEMENT_TYPE_ELECTRIC = 6 --闪电
 Damage.ELEMENT_TYPE_PSYCHIC = 7 --心灵
 Damage.ELEMENT_TYPE_BIO = 8 --生命
-Damage.ELEMENT_TYPE_GOD = 9 --神
+Damage.ELEMENT_TYPE_DIVINE = 9 --神圣
 Damage.ELEMENT_TYPE_ENERGIC = 10 --能量
 
 --伤害控制效果

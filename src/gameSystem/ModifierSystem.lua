@@ -50,6 +50,7 @@ function Modifier:new(o, owner, settings, applier, bindAbility)
     o.owner = owner
     o.interval = settings.interval or CoreTicker.Interval
     o.duration = settings.duration
+    o.max_duration = settings.duration
     if settings.remove_on_death == nil then
         o.remove_on_death = true
     else
@@ -59,12 +60,15 @@ function Modifier:new(o, owner, settings, applier, bindAbility)
     o.reapply_mode = settings.reapply_mode or Modifier.REAPPLY_MODE_NO
     o.stack = settings.stack or 1
     o.max_stack = settings.max_stack or 1
-    o.bonitas = settings.bonitas or 0 --大于0表示正面效果，小于0表示负面效果 
+    o.strength = settings.strength or 0 --大于0表示正面效果，小于0表示负面效果 
     o.effects = {}
     o.effects_scale = 1
     o.delta_time = 0
     o.CustomValues = {}
     o.tags = {}
+    o.hidden = (settings.hidden == true)
+    o.icon = settings.icon or [[ReplaceableTextures\PassiveButtons\PASBTNStatUp.blp]]
+    o.CommonStatsBonus = {}
     if settings.tags then 
         for _,tag in ipairs(settings.tags) do
             o.tags[tag] = true
@@ -103,7 +107,7 @@ end
 function Modifier:LV(key) return self:GetLevelValue(key) end
 
 function Modifier:Refresh()
-    self.duration = self.settings.duration
+    self.duration = self.max_duration
 end
 
 ---@param value number
@@ -114,6 +118,7 @@ function Modifier:AddStack(value, refresh)
         if (self.stack > self.max_stack) then
             self.stack = self.max_stack
         end
+        self:OnStack(value)
     end
     if (refresh == true) then
         self:Refresh()
@@ -139,13 +144,19 @@ function Modifier:Update()
     end
 end
 
+function Modifier:OnStack(value)
+    if (self.settings.OnStack ~= nil) then 
+        self.settings.OnStack(self, value)
+    end
+end
+
 function Modifier:Remove()
     self.owner:RemoveModifier(self)
 end
 
 function Modifier:OnDeath()
-    if (self.settings.Death ~= nil) then 
-        self.settings.Death(self) 
+    if (self.settings.OnDeath ~= nil) then 
+        self.settings.OnDeath(self)
     end
     if (self.remove_on_death == true) then
         self:Remove()
@@ -192,3 +203,34 @@ function Modifier:OnDealDamage(damage)
     if (self.settings.OnDealDamage ~= nil) then self.settings.OnDealDamage(self, damage) end
 end
 
+function Modifier:IsVisible(damage)
+    if (self.settings.OnDealDamage ~= nil) then self.settings.OnDealDamage(self, damage) end
+end
+
+function Modifier:GetDescription()
+    local title, duration, stack, body
+    title = self:GetTitle()..'|n|n'
+    if (self.duration == -1) then
+        duration = '∞'
+    else
+        duration = self.duration
+        if(duration > 1) then 
+            duration = math.ceil(duration)
+        else
+            duration =string.format("%.2f", duration)
+        end
+    end
+    duration =  '剩余时间: '..duration..'|n'
+    stack = '层数: '..self.stack..'|n'
+    body = string.gsub(self.settings.description or self.id, '%$[^(%$)]+%$', function (s)
+        return self:LV(string.sub(s, 2,-2))
+    end)
+    body = string.gsub(body, '@[^(%$)]+@', function (s)
+        return self.CustomValues[string.sub(s, 2,-2)]
+    end)
+    return title..duration..stack..body
+end
+
+function Modifier:GetTitle()
+    return self.settings.title or self.id
+end

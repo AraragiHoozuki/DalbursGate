@@ -5,7 +5,7 @@ UnitMgr.LuaUnits = {}
 
 --- register unit to lua unit
 ---@param unit unit
----@return LuaUnit
+---@return UnitWrapper
 UnitMgr.RegisterUnit = function(unit)
     local lu = LuaUnit:new(nil, unit)
     UnitMgr.LuaUnits[unit] = lu

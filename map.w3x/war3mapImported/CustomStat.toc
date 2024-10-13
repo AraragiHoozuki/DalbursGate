@@ -1,0 +1,2 @@
+war3mapimported\CustomStat.fdf
+war3mapimported\ModifierBar.fdf

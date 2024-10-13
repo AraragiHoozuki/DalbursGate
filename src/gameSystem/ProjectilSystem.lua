@@ -367,6 +367,11 @@ end
 
 ---@param victim UnitWrapper
 function Projectil:Hit(victim)
+    if victim ~= nil and self.hit_damage ~= nil then
+        self.hit_damage.target = victim
+        self.hit_damage.source_prjt = self
+        self.hit_damage:Resolve()
+    end
     -- if victim ~= nil and self.damageSettings.amount ~= 0 then
     --     local dmg = Damage:new(nil, self.emitter, victim, self.damageSettings.amount, self.damageSettings.atktype, self.damageSettings.dmgtype, self.damageSettings.eletype)
     --     dmg:Resolve()

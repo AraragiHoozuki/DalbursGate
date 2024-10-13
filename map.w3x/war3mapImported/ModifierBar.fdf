@@ -1,0 +1,40 @@
+IncludeFile "UI\FrameDef\UI\SimpleInfoPanel.fdf",-------------------------------------------------------
+Frame "BACKDROP" "ModifierTooltipBackgroundTemplate" {
+    DecorateFileNames, //Look-Up Names in some String table (for example gameinterface)
+    BackdropTileBackground, //Tile mode enabled
+    BackdropBackground  "ToolTipBackground", //BackgroundFile
+    BackdropCornerFlags "UL|UR|BL|BR|T|L|B|R",
+    BackdropCornerSize  0.008, //higher numbers make the corners bigger.
+    BackdropBackgroundInsets 0.0022 0.0022 0.0022 0.0022, //makes the background smaller, from the outside.
+    BackdropEdgeFile  "ToolTipBorder", //the border File
+    BackdropBlendAll,
+}
+// -- Frames -------------------------------------------------------
+Frame "BACKDROP" "ModifierTooltip" INHERITS "ModifierTooltipBackgroundTemplate" {
+	UseActiveContext,
+	
+	Frame "TEXT" "ModifierTooltipTitle" {
+		UseActiveContext,
+		DecorateFileNames,
+		SetPoint TOPLEFT, "ModifierTooltip", TOPLEFT, 0.005, -0.005,
+		SetPoint TOPRIGHT, "ModifierTooltip", TOPRIGHT, -0.005, -0.005,
+		FontFlags "FIXEDSIZE",
+		FrameFont "MasterFont", 0.014, "",
+		FontColor 1.0 1.0 1.0 1.0, //Red Green Blue Alpha 0.0 to 1.0
+		FontShadowColor 0.0 0.0 0.0 0.9,
+		FontShadowOffset 0.001 -0.001,
+	}
+	
+	Frame "TEXT" "ModifierTooltipDescription" {
+		UseActiveContext,
+		DecorateFileNames,
+		SetPoint TOPLEFT, "ModifierTooltip", TOPLEFT, 0.005, 0.1,
+		SetPoint BOTTOMRIGHT,  "ModifierTooltip", BOTTOMRIGHT, -0.005, 0.005,
+		FontFlags "FIXEDSIZE",
+		FrameFont "MasterFont", 0.012, "",
+		FontColor 1.0 1.0 1.0 1.0,
+		FontShadowColor 0.0 0.0 0.0 0.9,
+		FontShadowOffset 0.001 -0.001,
+        Height 0
+	}
+}

@@ -297,8 +297,8 @@ AbilityScripts.SPACE_CUT_CIRCLE = {
         local x = GetSpellTargetX()
         local y = GetSpellTargetY()
         local direction = math.atan(y - y0, x - x0)
-        local front = MapObject:ctor(x0 + 100 * Cos(direction), y0 + 100 * Sin(direction), 0, direction, [[Doodads\Dungeon\Props\Forcewall\Forcewall]], AbilityScripts.SPACE_CUT_CIRCLE.Duration)
-        local back = MapObject:ctor(x0 - 100 * Cos(direction), y0 - 100 * Sin(direction), 0, direction + math.pi, [[Doodads\Dungeon\Props\Forcewall\Forcewall]], AbilityScripts.SPACE_CUT_CIRCLE.Duration)
+        local front = MapObject:new(x0 + 100 * Cos(direction), y0 + 100 * Sin(direction), 0, direction, [[Doodads\Dungeon\Props\Forcewall\Forcewall]], AbilityScripts.SPACE_CUT_CIRCLE.Duration)
+        local back = MapObject:new(x0 - 100 * Cos(direction), y0 - 100 * Sin(direction), 0, direction + math.pi, [[Doodads\Dungeon\Props\Forcewall\Forcewall]], AbilityScripts.SPACE_CUT_CIRCLE.Duration)
         local update = function(this)
             for _,prjt in pairs(ProjectilMgr.Instances) do
                 local theta = math.atan(-this.position.y + prjt.position.y, -this.position.x + prjt.position.x)
@@ -351,5 +351,42 @@ AbilityScripts.SPACE_CUT_CIRCLE = {
                 end
             end
         end)
+    end
+}
+
+-- 风暴力场
+Master.Modifier.STORM_FORCE_FIELD = {
+    id = 'STORM_FORCE_FIELD',
+    duration = -1,
+    interval = 65535,
+    reapply_mode = Modifier.REAPPLY_MODE.NO,
+    remove_on_death = false,
+    Effects = {},
+    BindAbility = FourCC('A00B'),
+    LevelValues = {
+        PushVelocity = {1000,1200,1400,1600},
+        PushDuration = {0.3}
+    },
+    ---@param this Modifier
+    ---@param damage Damage
+    OnTakeDamage = function(this, damage)
+        if damage.atktype == Damage.ATTACK_TYPE_MELEE then
+            local dx = GetUnitX(damage.source.unit) - GetUnitX(this.owner.unit)
+            local dy = GetUnitY(damage.source.unit) - GetUnitY(this.owner.unit)
+            local r = math.atan(dy, dx)
+            local v = this:LV('PushVelocity')
+            local a = - v / this:LV('PushDuration')
+            damage.source:AddDisplace(Displace:ctor{
+                velocity = Vector3:new(nil, v * Cos(r), v * Sin(r), 0),
+                accelerate = Vector3:new(nil, a * Cos(r), a * Sin(r), 0),
+                max_distance = 0,
+                max_duration = this:LV('PushDuration'),
+                interruptible = true,
+                interrupt_action = true,
+                efx = nil,
+                efx_interval = 1,
+            })
+            DestroyEffect(AddSpecialEffectTarget([[Abilities\Spells\NightElf\Taunt\TauntCaster.mdl]], this.owner.unit, 'origin'))
+        end
     end
 }

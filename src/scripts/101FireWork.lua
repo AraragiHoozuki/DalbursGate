@@ -98,26 +98,26 @@ NATIONALDAY_FIREWORKS = {
 }
 
 Master.Projectil.FIREWORK_TARGET = {
-    model = [[Abilities\Weapons\RedDragonBreath\RedDragonMissile.mdl]],
-    model_scale = 1,
-    speed = 1600, 
-    no_gravity = false,
-    hit_range = 25,
-    hit_terrain = true,
-    hit_other = false,
-    hit_ally = false,
-    hit_piercing = false,
-    hit_cooldown = 1,
-    track_type = Projectil.TRACK_TYPE_POSITION,
-    tracking_angle = 360 * math.degree,
-    turning_speed = 360 * math.degree,
-    turning_speed_pitch = 360 * math.degree,
-    max_flying_distance = 15000,
+    model = [[Abilities\Weapons\RedDragonBreath\RedDragonMissile.mdl]], -- 模型
+    model_scale = 1, --模型缩放
+    speed = 1600,  --初始速率
+    no_gravity = false, --是否无视重力
+    hit_range = 25, --命中监测方位
+    hit_terrain = true, --是否会被地形阻挡
+    hit_other = false, --是否会命中目标以外单位
+    hit_ally = false, --是否会命中队友
+    hit_piercing = false, --是否穿透（命中单位后是否会消失）
+    hit_cooldown = 1, --同一单位命中时间间隔（对于穿透弹道，防止命中同一单位N次）
+    track_type = Projectil.TRACK_TYPE_POSITION, --追踪类型（追踪点/追踪单位/无追踪）
+    tracking_angle = 360 * math.degree, --追踪角度，目标不在角度范围内时，丢失追踪效果
+    turning_speed = 360 * math.degree, -- 水平转向速度
+    turning_speed_pitch = 360 * math.degree, -- 垂直转向速度
+    max_flying_distance = 15000, --最大飞行距离
     offsetX = 0,
     offsetY = 0,
     offsetZ = 50,
     ---@param this Projectil
-    OnHit = function(this)
+    OnHit = function(this) -- 命中时调用的函数
         NATIONALDAY_FIREWORKS.Flower(this,Master.Projectil.FIREWORK_SECONDARY)
     end
 }

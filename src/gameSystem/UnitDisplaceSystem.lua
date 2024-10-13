@@ -12,6 +12,8 @@ Displace = {
     duration = 0,
     distance = 0,
     finished = false,
+    OnFinished = nil,
+    OnInterrupted = nil
 }
 -- 多个位移叠加方法
 Displace.OVERLAY_METHOD = {}

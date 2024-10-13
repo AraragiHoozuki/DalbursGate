@@ -4,6 +4,9 @@ require('master')
 -- 灵魂转化
 Master.Modifier.NEPHTIS_SOUL_CONVERT = {
     id = 'NEPHTIS_SOUL_CONVERT',
+    icon = [[ReplaceableTextures\CommandButtons\BTNAnimateDead.blp]],
+    title = [[灵魂转化]],
+    description = [[当周围@DetectRange@范围内的非英雄、非机械单位死亡时，吸收它们的灵魂。]],
     duration = -1,
     interval = 1,
     reapply_mode = Modifier.REAPPLY_MODE.NO,
@@ -82,22 +85,9 @@ Master.Projectil.NEPHTIS_SOUL_CONVERT_PRJT = {
         local m = victim:GetAffectedModifier('NEPHTIS_SOUL_CONVERT')
         table.insert(m.CustomValues.Souls, this.CustomValues.AbsorbedSoul)
         print(this.CustomValues.AbsorbedSoul.name)
-        local ability = BlzGetUnitAbility(victim.unit, Master.Modifier.NEPHTIS_SOUL_CONVERT.BindAbility)
-        local tooltip = '当周围的单位死亡时，吸收他们的灵魂，被吸收灵魂的单位无法复活。\n已经吸收的灵魂：'
-        for _,v in pairs(m.CustomValues.Souls) do
-            tooltip = tooltip..v.name
-        end
-        IncUnitAbilityLevel(victim.unit, Master.Modifier.NEPHTIS_SOUL_CONVERT.BindAbility)
-        BlzSetAbilityStringLevelField(ability, ABILITY_SLF_TOOLTIP_NORMAL_EXTENDED, 0, tooltip)
-        DecUnitAbilityLevel(victim.unit, Master.Modifier.NEPHTIS_SOUL_CONVERT.BindAbility)
     end
 }
 
--- 灵魂连接
---[[
-使目标与自己共享生命，当双方生命百分比不同时，
-较高的一方生命值会流向较低的一方，最高每秒转移50/100/150/200点生命
-]]
 AbilityScripts.NEPHTIS_SOUL_LINK = {
     AbilityId = FourCC('A00H'),
     Cast = function()
@@ -108,6 +98,9 @@ AbilityScripts.NEPHTIS_SOUL_LINK = {
 }
 Master.Modifier.NEPHTIS_SOUL_LINK = {
     id = 'NEPHTIS_SOUL_LINK',
+    icon = [[ReplaceableTextures\CommandButtons\BTNSpiritLink.blp]],
+    title = [[灵魂连接（目标）]],
+    description = [[生命值会在此单位与灵魂连接的释放者之间转移，使双方生命值百分比尽量保持一致，每秒最多转移$MaxLifeTransferPerSecond$点生命]],
     duration = 30,
     interval = nil,
     reapply_mode = Modifier.REAPPLY_MODE.REFRESH,

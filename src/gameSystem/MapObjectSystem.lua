@@ -21,7 +21,10 @@ end
 
 --------------------------------------------------------
 ---@class MapObject
-MapObject = Entity:ctor{}
+MapObject = Entity:ctor{
+    z = 0,
+    yaw = 0,
+}
 
 MapObject.Create = function(lu_creator, position, model, duration, awake_handlers)
     local obj = MapObject:new(nil, lu_creator, position, model, duration, awake_handlers)
@@ -29,9 +32,24 @@ MapObject.Create = function(lu_creator, position, model, duration, awake_handler
     return obj
 end
 
+---@return MapObject
+function MapObject:ctor(o)
+    local o = Entity:ctor(o)
+    setmetatable(o, self)
+    self.__index = self
+    local z = Entity.GetLocationZ(o.x, o.y) + o.z
+    o.position:MoveTo(o.x,o.y,z)
+    o:CreateModel(o.model_path)
+    MapObjectMgr.Instances[o.uuid] = o
+    o.awake_handlers = o.awake_handlers or {}
+    o.update_handlers = o.update_handlers or {}
+    o.remove_handlers = o.remove_handlers or {}
+    o:Awake()
+    return o
+end
 
 ---@return MapObject
-function MapObject:ctor(x, y, z, yaw, model_path, duration, awake_handler)
+function MapObject:new(x, y, z, yaw, model_path, duration, awake_handler)
     local o = Entity:ctor(nil)
     setmetatable(o, self)
     self.__index = self
@@ -44,35 +62,6 @@ function MapObject:ctor(x, y, z, yaw, model_path, duration, awake_handler)
     o:CreateModel(model_path)
     o.duration = duration
     MapObjectMgr.Instances[o.uuid] = o
-    o:Awake()
-    return o
-end
-
----@param o MapObject
----@param lu_creator LuaUnit
----@param position Vector3
----@param model string
----@param duration number
----@param awake_handlers table<number,function>
----@return MapObject
-function MapObject:new(o, lu_creator, position, model, duration, awake_handlers)
-    o = o or {}
-    setmetatable(o, self)
-    self.__index = self
-    o.uuid = GUID.generate()
-    o.creator = lu_creator
-    o.position = position
-    o.model = model
-    o.duration = duration
-    o.effect = nil
-    o.awake_handlers = awake_handlers or {}
-    o.update_handlers = {}
-    o.remove_handlers = {}
-    o.finished = false
-    --init Z
-    MoveLocation(MapObject.tempLoc, o.position.x, o.position.y)
-    o.position.z = Entity.GetLocationZ(Entity.tempLoc) + o.position.z
-    o:CreateModel()
     o:Awake()
     return o
 end

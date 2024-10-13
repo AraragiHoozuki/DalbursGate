@@ -30,7 +30,7 @@ Master.Modifier.SHOW_ORDER_STRING = {
     Update = function(this)
         local id = GetUnitCurrentOrder(this.owner.unit)
         local s = OrderId2String(id)
-        print(id, ': ', s)
+        print(GetUnitName(this.owner.unit), ' current order: ', id, ', ', s)
     end
 }
 
@@ -66,5 +66,63 @@ Master.Modifier.AUXILIARY_MOVE = {
         end
         this.last_pos.x = x
         this.last_pos.y = y
+    end
+}
+
+Master.Modifier.STUN = {
+    id = 'STUN',
+    icon = [[ReplaceableTextures\CommandButtons\BTNStun.blp]],
+    title = '眩晕',
+    description = '这个单位眩晕了，无法行动',
+    duration = 3,
+    interval = 1,
+    reapply_mode = Modifier.REAPPLY_MODE.COEXIST,
+    Effects = {{
+        model = [[Abilities\Spells\Human\Thunderclap\ThunderclapTarget.mdl]],
+        attach_point = 'overhead'
+    }},
+    tags = {TAG.STATE.BASE_STUNED},
+    ---@param this Modifier
+    OnAcquired = function(this)
+        BlzPauseUnitEx(this.owner.unit, true)
+        IssueImmediateOrderById(this.owner.unit, 851973)
+    end,
+    ---@param this Modifier
+    OnRemoved = function(this)
+        if (not this.owner:HasTag(TAG.STATE.BASE_STUNED)) then
+            IssueImmediateOrderById(this.owner.unit, 851973)
+            BlzPauseUnitEx(this.owner.unit, false)
+        end
+    end
+}
+
+Master.Modifier.FROZEN = {
+    id = 'FROZEN',
+    icon = [[ReplaceableTextures\CommandButtons\BTNFrozen.dds]],
+    title = '冻结',
+    description = '这个单位被冻结了，无法行动',
+    duration = 3,
+    interval = 1,
+    reapply_mode = Modifier.REAPPLY_MODE.COEXIST,
+    Effects = {{
+        model = [[Effects\IceCube.mdx]],
+        attach_point = 'origin'
+    }},
+    tags = {TAG.STATE.BASE_STUNED, TAG.ETC.STOP_ANIMATION},
+    ---@param this Modifier
+    OnAcquired = function(this)
+        BlzPauseUnitEx(this.owner.unit, true)
+        IssueImmediateOrderById(this.owner.unit, 851973)
+        SetUnitTimeScale(this.owner.unit, 0)
+    end,
+    ---@param this Modifier
+    OnRemoved = function(this)
+        if (not this.owner:HasTag(TAG.STATE.BASE_STUNED)) then
+            IssueImmediateOrderById(this.owner.unit, 851973)
+            BlzPauseUnitEx(this.owner.unit, false)
+        end
+        if (not this.owner:HasTag(TAG.ETC.STOP_ANIMATION)) then
+            SetUnitTimeScale(this.owner.unit, 1)
+        end
     end
 }

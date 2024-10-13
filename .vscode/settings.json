@@ -1,5 +1,8 @@
 {
     "warcraft.configuration": "Debug",
     "warcraft.warcraftVersion": "Reforge",
-    "search.useIgnoreFiles": true
+    "search.useIgnoreFiles": true,
+    "Lua.diagnostics.disable": [
+        "undefined-field"
+    ]
 }

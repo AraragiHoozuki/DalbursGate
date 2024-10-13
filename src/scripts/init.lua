@@ -27,6 +27,8 @@ AbilityIntrinsecModDict = {
     [FourCC('A00B')] = {'STORM_FORCE_FIELD'},
     [FourCC('A00C')] = {'INFERNAL_FLAME'},
     [FourCC('A00O')] = {'NEPHTIS_SOUL_CONVERT'},
+    [FourCC('A00S')] = {'RED_DRAGON_ENVIRONMENT'},
+    [FourCC('A00U')] = {'FREEZING_REALM'},
     [FourCC('AUav')] = {'BLOOD_THIRST_AURA'},
 }
 
@@ -36,7 +38,9 @@ AbilityIntrinsecModDict = {
 
 require('scripts.Misc')
 require('scripts.Nephtis')
+require('scripts.RedDragon')
 require('scripts.101FireWork')
+require('scripts.IceMaiden')
 
 do -- Ability Cast Trigger
     local trigger = CreateTrigger()
@@ -93,7 +97,7 @@ end
 AbilityScripts.SPAWN_TEST_UNITS = {
     AbilityId = FourCC('A00I'),
     RandomUnitPool = {
-        FourCC('hfoo'),FourCC('hkni'),FourCC('hmpr'),FourCC('hmtt'),FourCC('ogru'),FourCC('otau')
+        FourCC('hfoo'),FourCC('hkni'),FourCC('hmpr'),FourCC('hmtt'),FourCC('ogru'),FourCC('otau'),FourCC('owyv')
     },
     Cast = function()
         local caster = UnitWrapper.Get(GetTriggerUnit())

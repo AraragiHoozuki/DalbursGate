@@ -71,6 +71,7 @@ function UnitWrapper:ctor(unit)
     o.defaultFlyHeight = GetUnitFlyHeight(unit)
     o:InitGravityDisplace()
     o:InitCommonAbilities()
+    o:InitCommonStats()
     return o
 end
 
@@ -78,19 +79,41 @@ function UnitWrapper:InitCommonAbilities()
     if (GetUnitAbilityLevel(self.unit, CommonAbilitiy.AttackSpeed) < 1) then
         UnitAddAbility(self.unit, CommonAbilitiy.AttackSpeed)
     end
-    if (GetUnitAbilityLevel(self.unit, CommonAbilitiy.MoveSpeed) < 1) then
-        UnitAddAbility(self.unit, CommonAbilitiy.MoveSpeed)
-    end
-    self.attack_speed_ability = BlzGetUnitAbility(self.unit, CommonAbilitiy.AttackSpeed)
-    self.move_speed_ability = BlzGetUnitAbility(self.unit, CommonAbilitiy.MoveSpeed)
+    self.CommonAbilities = {}
+    self.CommonAbilities.attack_speed = BlzGetUnitAbility(self.unit, CommonAbilitiy.AttackSpeed)
 end
 function UnitWrapper:GetBonusAttackSpeed()
-    return BlzGetAbilityRealLevelField(self.attack_speed_ability, ABILITY_RLF_ATTACK_SPEED_INCREASE_ISX1, 0)
+    return BlzGetAbilityRealLevelField(self.CommonAbilities.attack_speed, ABILITY_RLF_ATTACK_SPEED_INCREASE_ISX1, 0)
 end
 function UnitWrapper:AddAttackSpeed(value)
-    BlzSetAbilityRealLevelField(self.attack_speed_ability, ABILITY_RLF_ATTACK_SPEED_INCREASE_ISX1, 0, self:GetBonusAttackSpeed() + value)
+    BlzSetAbilityRealLevelField(self.CommonAbilities.attack_speed, ABILITY_RLF_ATTACK_SPEED_INCREASE_ISX1, 0, self:GetBonusAttackSpeed() + value)
     IncUnitAbilityLevel(self.unit, CommonAbilitiy.AttackSpeed)
     DecUnitAbilityLevel(self.unit, CommonAbilitiy.AttackSpeed)
+end
+
+function UnitWrapper:InitCommonStats()
+    self.CommonStats = {
+        movespeed = GetUnitDefaultMoveSpeed(self.unit)
+    }
+    self.CommonStatsBonus = {
+        movespeed = 0
+    }
+end
+
+function UnitWrapper:UpdateCommonStats()
+    self:UpdateCommonStatsBonus()
+    --movespeed
+    SetUnitMoveSpeed(self.unit, self.CommonStats.movespeed + (self.CommonStatsBonus.movespeed or 0))
+end
+
+function UnitWrapper:UpdateCommonStatsBonus()
+    self.CommonStatsBonus= {}
+    for i = #(self.modifiers), 1, -1 do
+        local mod = self.modifiers[i]
+        for k,v in pairs(mod.CommonStatsBonus) do
+            self.CommonStatsBonus[k] = (self.CommonStatsBonus[k] or 0) + v
+        end
+    end
 end
 
 function UnitWrapper:InitGravityDisplace()
@@ -107,6 +130,7 @@ end
 function UnitWrapper:Update()
     self:UpdateModifiers()
     self:UpdateDisplaces()
+    self:UpdateCommonStats()
 end
 
 function UnitWrapper:EnableHeightChange()
