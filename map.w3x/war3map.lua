@@ -1,25 +1,8 @@
 gg_trg_Untitled_Trigger_001 = nil
+gg_trg_Untitled_Trigger_001_______u = nil
+gg_trg_Untitled_Trigger_001______________u = nil
+gg_trg_Untitled_Trigger_001_____________________u = nil
 function InitGlobals()
-end
-
-function Trig_Untitled_Trigger_001_Conditions()
-if (not (UnitCanSleepPerm(GetTriggerUnit()) == true)) then
-return false
-end
-return true
-end
-
-function Trig_Untitled_Trigger_001_Actions()
-end
-
-function InitTrig_Untitled_Trigger_001()
-gg_trg_Untitled_Trigger_001 = CreateTrigger()
-TriggerAddCondition(gg_trg_Untitled_Trigger_001, Condition(Trig_Untitled_Trigger_001_Conditions))
-TriggerAddAction(gg_trg_Untitled_Trigger_001, Trig_Untitled_Trigger_001_Actions)
-end
-
-function InitCustomTriggers()
-InitTrig_Untitled_Trigger_001()
 end
 
 function InitCustomPlayerSlots()
@@ -35,7 +18,7 @@ SetPlayerTeam(Player(0), 0)
 end
 
 function main()
-SetCameraBounds(-3328.0 + GetCameraMargin(CAMERA_MARGIN_LEFT), -3584.0 + GetCameraMargin(CAMERA_MARGIN_BOTTOM), 3328.0 - GetCameraMargin(CAMERA_MARGIN_RIGHT), 3072.0 - GetCameraMargin(CAMERA_MARGIN_TOP), -3328.0 + GetCameraMargin(CAMERA_MARGIN_LEFT), 3072.0 - GetCameraMargin(CAMERA_MARGIN_TOP), 3328.0 - GetCameraMargin(CAMERA_MARGIN_RIGHT), -3584.0 + GetCameraMargin(CAMERA_MARGIN_BOTTOM))
+SetCameraBounds(-11520.0 + GetCameraMargin(CAMERA_MARGIN_LEFT), -11776.0 + GetCameraMargin(CAMERA_MARGIN_BOTTOM), 3328.0 - GetCameraMargin(CAMERA_MARGIN_RIGHT), 3072.0 - GetCameraMargin(CAMERA_MARGIN_TOP), -11520.0 + GetCameraMargin(CAMERA_MARGIN_LEFT), 3072.0 - GetCameraMargin(CAMERA_MARGIN_TOP), 3328.0 - GetCameraMargin(CAMERA_MARGIN_RIGHT), -11776.0 + GetCameraMargin(CAMERA_MARGIN_BOTTOM))
 SetDayNightModels("Environment\\DNC\\DNCLordaeron\\DNCLordaeronTerrain\\DNCLordaeronTerrain.mdl", "Environment\\DNC\\DNCLordaeron\\DNCLordaeronUnit\\DNCLordaeronUnit.mdl")
 NewSoundEnvironment("Default")
 SetAmbientDaySound("LordaeronSummerDay")
@@ -43,7 +26,6 @@ SetAmbientNightSound("LordaeronSummerNight")
 SetMapMusic("Music", true, 0)
 InitBlizzard()
 InitGlobals()
-InitCustomTriggers()
 end
 
 function config()
@@ -52,7 +34,7 @@ SetMapDescription("")
 SetPlayers(1)
 SetTeams(1)
 SetGamePlacement(MAP_PLACEMENT_USE_MAP_SETTINGS)
-DefineStartLocation(0, 896.0, -640.0)
+DefineStartLocation(0, -192.0, -192.0)
 InitCustomPlayerSlots()
 SetPlayerSlotAvailable(Player(0), MAP_CONTROL_USER)
 InitGenericPlayerSlots()

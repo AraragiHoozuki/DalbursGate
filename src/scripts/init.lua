@@ -29,6 +29,8 @@ AbilityIntrinsecModDict = {
     [FourCC('A00O')] = {'NEPHTIS_SOUL_CONVERT'},
     [FourCC('A00S')] = {'RED_DRAGON_ENVIRONMENT'},
     [FourCC('A00U')] = {'FREEZING_REALM'},
+    [FourCC('A00Y')] = {'LIFE_BY_ATTACK_TIME'},
+    [FourCC('A00Z')] = {'DAGONS_BLESS', 'OCEANUS_STRIKE'},
     [FourCC('AUav')] = {'BLOOD_THIRST_AURA'},
 }
 
@@ -39,8 +41,9 @@ AbilityIntrinsecModDict = {
 require('scripts.Misc')
 require('scripts.Nephtis')
 require('scripts.RedDragon')
-require('scripts.101FireWork')
+--require('scripts.101FireWork')
 require('scripts.IceMaiden')
+require('scripts.NagaQueen')
 
 do -- Ability Cast Trigger
     local trigger = CreateTrigger()

@@ -33,7 +33,7 @@ UnitMgr.RemoveUnit = function(unit)
 end
 
 UnitMgr.Update = function()
-    for _,v in pairs(UnitMgr.Units) do
+    for _, v in pairs(UnitMgr.Units) do
         v:Update()
     end
 end
@@ -48,8 +48,8 @@ UnitMgr.DummySpellTarget = function(speller, target, abiId, level, order_string)
 end
 --------------------------------------------------------------------
 
----@class UnitWrapper
-UnitWrapper = Entity:ctor{}
+---@class UnitWrapper:Entity
+UnitWrapper = Entity:ctor {}
 
 UnitWrapper.Get = function(unit)
     if (UnitMgr.UnitRegisteredQ(unit)) then
@@ -82,11 +82,14 @@ function UnitWrapper:InitCommonAbilities()
     self.CommonAbilities = {}
     self.CommonAbilities.attack_speed = BlzGetUnitAbility(self.unit, CommonAbilitiy.AttackSpeed)
 end
+
 function UnitWrapper:GetBonusAttackSpeed()
     return BlzGetAbilityRealLevelField(self.CommonAbilities.attack_speed, ABILITY_RLF_ATTACK_SPEED_INCREASE_ISX1, 0)
 end
+
 function UnitWrapper:AddAttackSpeed(value)
-    BlzSetAbilityRealLevelField(self.CommonAbilities.attack_speed, ABILITY_RLF_ATTACK_SPEED_INCREASE_ISX1, 0, self:GetBonusAttackSpeed() + value)
+    BlzSetAbilityRealLevelField(self.CommonAbilities.attack_speed, ABILITY_RLF_ATTACK_SPEED_INCREASE_ISX1, 0,
+        self:GetBonusAttackSpeed() + value)
     IncUnitAbilityLevel(self.unit, CommonAbilitiy.AttackSpeed)
     DecUnitAbilityLevel(self.unit, CommonAbilitiy.AttackSpeed)
 end
@@ -107,17 +110,29 @@ function UnitWrapper:UpdateCommonStats()
 end
 
 function UnitWrapper:UpdateCommonStatsBonus()
-    self.CommonStatsBonus= {}
+    self.CommonStatsBonus = {}
     for i = #(self.modifiers), 1, -1 do
         local mod = self.modifiers[i]
-        for k,v in pairs(mod.CommonStatsBonus) do
+        for k, v in pairs(mod.CommonStatsBonus) do
             self.CommonStatsBonus[k] = (self.CommonStatsBonus[k] or 0) + v
         end
     end
 end
 
+function UnitWrapper:AddHP(v)
+    SetUnitState(self.unit, UNIT_STATE_LIFE, GetUnitState(self.unit, UNIT_STATE_LIFE) + v)
+end
+function UnitWrapper:AddHPRate(r)
+    local hp = GetUnitState(self.unit, UNIT_STATE_LIFE)
+    SetUnitState(self.unit, UNIT_STATE_LIFE, hp + hp * r/100)
+end
+
+function UnitWrapper:DeadQ()
+    return IsUnitType(self.unit, UNIT_TYPE_DEAD)
+end
+
 function UnitWrapper:InitGravityDisplace()
-    self.gravityDisplace = Displace:ctor{
+    self.gravityDisplace = Displace:ctor {
         velocity = Vector3:new(nil, 0, 0, 0),
         accelerate = Vector3:new(nil, 0, 0, -GameConstants.Gravity),
         max_distance = 0,
@@ -137,7 +152,7 @@ function UnitWrapper:EnableHeightChange()
     if (self.height_change_enabled ~= true) then
         UnitAddAbility(self.unit, FourCC('Arav'))
         UnitRemoveAbility(self.unit, FourCC('Arav'))
-        self.height_change_enabled =  true
+        self.height_change_enabled = true
     end
 end
 
@@ -150,23 +165,26 @@ function UnitWrapper:UpdateDisplaces()
         if d.finished then
             table.remove(self.displaces, i)
         else
-            if d.interrupt_action then 
+            if d.interrupt_action then
                 IssueImmediateOrderById(self.unit, 851972) -- stop order
             end
             x, y, z = d:Calc(x, y, z)
+            if (d.finish_when_landed and z - Entity.GetLocationZ(x, y) <= self.defaultFlyHeight) then
+                d:Finish()
+            end
         end
     end
-    local height = z - Entity.GetLocationZ(x,y)
+    local height = z - Entity.GetLocationZ(x, y)
     if height > self.defaultFlyHeight + 1 then
         x, y, z = self.gravityDisplace:Calc(x, y, z)
     else
         self.gravityDisplace.velocity.z = 0
-        z = Entity.GetLocationZ(x,y) + self.defaultFlyHeight
+        z = Entity.GetLocationZ(x, y) + self.defaultFlyHeight
     end
     SetUnitX(self.unit, x)
     SetUnitY(self.unit, y)
     self:EnableHeightChange()
-    SetUnitFlyHeight(self.unit, z - Entity.GetLocationZ(x,y), 0)
+    SetUnitFlyHeight(self.unit, z - Entity.GetLocationZ(x, y), 0)
 end
 
 function UnitWrapper:AddDisplace(d)
@@ -183,6 +201,7 @@ function UnitWrapper:AcquireModifier(settings, lu_applier, bindAbility)
     local mod = Modifier.Create(self, settings, lu_applier, bindAbility)
     return self:CheckModifierReapply(mod)
 end
+
 function UnitWrapper:AcquireModifierById(mid, lu_applier, bindAbility)
     local mod = Modifier.CreateById(self, mid, lu_applier, bindAbility)
     return self:CheckModifierReapply(mod)
@@ -192,29 +211,33 @@ function UnitWrapper:ApplyModifier(settings, lu_target, bindAbility)
     local mod = Modifier.Create(lu_target, settings, self, bindAbility)
     return lu_target:CheckModifierReapply(mod)
 end
+
 function UnitWrapper:ApplyModifierById(mid, lu_target, bindAbility)
     local mod = Modifier.CreateById(lu_target, mid, self, bindAbility)
     return lu_target:CheckModifierReapply(mod)
 end
 
 function UnitWrapper:IsModifierTypeAffected(mid)
-    for k,v in pairs(self.modifiers) do
+    for k, v in pairs(self.modifiers) do
         if v.id == mid then
             return true
         end
     end
     return false
 end
+
+---@return Modifier|nil
 function UnitWrapper:GetAffectedModifier(mid)
-    for _,v in pairs(self.modifiers) do
+    for _, v in pairs(self.modifiers) do
         if v.id == mid then
             return v
         end
     end
     return nil
 end
+
 function UnitWrapper:GetAffectedModifierIndex(mid)
-    for i,v in ipairs(self.modifiers) do
+    for i, v in ipairs(self.modifiers) do
         if v.id == mid then
             return i
         end
@@ -262,10 +285,12 @@ function UnitWrapper:RemoveModifier(mod)
     local index = table.indexOf(self.modifiers, mod)
     self:RemoveModifierByIndex(index)
 end
+
 function UnitWrapper:RemoveModifierById(mid)
     local index = self:GetAffectedModifierIndex(mid)
     self:RemoveModifierByIndex(index)
 end
+
 function UnitWrapper:RemoveModifierByIndex(index)
     if index ~= nil then
         local mod = table.remove(self.modifiers, index)
@@ -274,7 +299,7 @@ function UnitWrapper:RemoveModifierByIndex(index)
 end
 
 function UnitWrapper:HasTag(tag)
-    for _,m in ipairs(self.modifiers) do
+    for _, m in ipairs(self.modifiers) do
         if m.tags[tag] ~= nil then
             return true
         end
@@ -283,30 +308,102 @@ function UnitWrapper:HasTag(tag)
 end
 
 function UnitWrapper:OnDeath()
-    for _,m in pairs(self.modifiers) do
+    for _, m in pairs(self.modifiers) do
         m:OnDeath()
     end
 end
 
 function UnitWrapper:OnBeforeDealDamage(damage)
-    for _,m in pairs(self.modifiers) do
+    for _, m in pairs(self.modifiers) do
         m:OnBeforeDealDamage(damage)
     end
 end
+
 function UnitWrapper:OnBeforeTakeDamage(damage)
-    for _,m in pairs(self.modifiers) do
+    for _, m in pairs(self.modifiers) do
         m:OnBeforeTakeDamage(damage)
     end
 end
 
+function UnitWrapper:OnStartDealDamage(damage)
+    for _, m in pairs(self.modifiers) do
+        m:OnStartDealDamage(damage)
+    end
+end
+
+function UnitWrapper:OnStartTakeDamage(damage)
+    for _, m in pairs(self.modifiers) do
+        m:OnStartTakeDamage(damage)
+    end
+end
+
 function UnitWrapper:OnDealDamage(damage)
-    for _,m in pairs(self.modifiers) do
+    for _, m in pairs(self.modifiers) do
         m:OnDealDamage(damage)
     end
 end
 
 function UnitWrapper:OnTakeDamage(damage)
-    for _,m in pairs(self.modifiers) do
+    for _, m in pairs(self.modifiers) do
         m:OnTakeDamage(damage)
     end
+end
+
+---@return number
+function UnitWrapper:GetX()
+    return GetUnitX(self.unit)
+end
+
+---@return number
+function UnitWrapper:GetY()
+    return GetUnitY(self.unit)
+end
+
+---@param uw UnitWrapper
+---@return number
+function UnitWrapper:DistanceToUnit(uw)
+    local dx = uw:GetX() - self:GetX()
+    local dy = uw:GetY() - self:GetY()
+    return math.sqrt(dx * dx + dy * dy)
+end
+
+---@return boolean
+function UnitWrapper:OnDeepWaterQ()
+    if self:IsModifierTypeAffected('ON_DEEP_WATER_FAKE') then return true end
+    local x = self:GetX()
+    local y = self:GetY()
+    if not IsTerrainPathable(x, y, PATHING_TYPE_FLOATABILITY) then
+        if not IsTerrainPathable(x, y, PATHING_TYPE_WALKABILITY) then
+            return false
+        else
+            return true
+        end
+    end
+    return false
+end
+
+---@return boolean
+function UnitWrapper:OnShallowWaterQ()
+    if self:IsModifierTypeAffected('ON_SHALLOW_WATER_FAKE') then return true end
+    local x = self:GetX()
+    local y = self:GetY()
+    if not IsTerrainPathable(x, y, PATHING_TYPE_FLOATABILITY) then
+        if not IsTerrainPathable(x, y, PATHING_TYPE_WALKABILITY) then
+            return true
+        else
+            return false
+        end
+    end
+    return false
+end
+
+---@return boolean
+function UnitWrapper:OnWaterQ()
+    if self:IsModifierTypeAffected('ON_SHALLOW_WATER_FAKE') or self:IsModifierTypeAffected('ON_DEEP_WATER_FAKE') then return true end
+    local x = self:GetX()
+    local y = self:GetY()
+    if not IsTerrainPathable(x, y, PATHING_TYPE_FLOATABILITY) then
+        return true
+    end
+    return false
 end

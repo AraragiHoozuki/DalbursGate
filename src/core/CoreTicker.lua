@@ -36,7 +36,7 @@ function CoreTicker.AttachAction(action, interval, id)
     if (CoreTicker.AttachedActions[id] == nil) then
         CoreTicker.AttachedActions[id] = {
             func = action,
-            interval = interval,
+            interval = interval or CoreTicker.Interval,
             elapsed = 0
         }
     else

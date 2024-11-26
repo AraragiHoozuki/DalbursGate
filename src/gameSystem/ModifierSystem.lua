@@ -106,6 +106,11 @@ end
 
 function Modifier:LV(key) return self:GetLevelValue(key) end
 
+function Modifier:ReinitDuration(v)
+    self.max_duration = v
+    self.duration = v
+end
+
 function Modifier:Refresh()
     self.duration = self.max_duration
 end
@@ -194,10 +199,17 @@ function Modifier:OnBeforeDealDamage(damage)
     if (self.settings.OnBeforeDealDamage ~= nil) then self.settings.OnBeforeDealDamage(self, damage) end
 end
 
+function Modifier:OnStartTakeDamage(damage)
+    if (self.settings.OnStartTakeDamage ~= nil) then self.settings.OnStartTakeDamage(self, damage) end
+end
+
+function Modifier:OnStartDealDamage(damage)
+    if (self.settings.OnStartDealDamage ~= nil) then self.settings.OnStartDealDamage(self, damage) end
+end
+
 function Modifier:OnTakeDamage(damage)
     if (self.settings.OnTakeDamage ~= nil) then self.settings.OnTakeDamage(self, damage) end
 end
-
 
 function Modifier:OnDealDamage(damage)
     if (self.settings.OnDealDamage ~= nil) then self.settings.OnDealDamage(self, damage) end

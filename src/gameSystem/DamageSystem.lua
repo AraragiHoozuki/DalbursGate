@@ -33,8 +33,8 @@ Damage.ATTACK_TYPE_SPELL = 3 -- 法术攻击
 Damage.DAMAGE_TYPE_NORMAL = 0 --普通伤害
 Damage.DAMAGE_TYPE_DIRECT = 1 --直接伤害，不受任何减免
 Damage.DAMAGE_TYPE_PURE = 2 --纯粹伤害，不受防御、抗性减免，但是可以被伤害控制效果减免
-Damage.DAMAGE_TYPE_DOT = 3 -- damage over time
-Damage.DAMAGE_TYPE_HEAL = 4
+Damage.DAMAGE_TYPE_DOT = 3 -- damage over time 持续伤害
+Damage.DAMAGE_TYPE_HEAL = 4 -- 治疗
 
 Damage.ELEMENT_TYPE_NONE = 0
 Damage.ELEMENT_TYPE_PIERCE = 1 --穿刺
@@ -53,8 +53,8 @@ Damage.CONTROL_TYPE_SET = 0 --设置伤害值
 Damage.CONTROL_TYPE_CAPTION_MAX = 1 --伤害上限
 Damage.CONTROL_TYPE_CAPTION_MIN = 2 --伤害下限
 Damage.CONTROL_TYPE_ADD_BEFORE_RATE = 3 --基础伤害数值加成
-Damage.CONTROL_TYPE_RATE = 4 --基础伤害倍率加成
-Damage.CONTROL_TYPE_SCALE = 5 --伤害倍乘
+Damage.CONTROL_TYPE_RATE = 4 --基础伤害倍率加成（加法叠加）
+Damage.CONTROL_TYPE_SCALE = 5 --伤害倍乘（乘法叠加）
 Damage.CONTROL_TYPE_ADD_AFTER_RATE = 6 --最终伤害数值加成
 
 
@@ -93,7 +93,7 @@ function Damage:ctor(o)
   o = o or {}
   setmetatable(o, self)
   self.__index = self
-  o.amount_before_control = o.amount
+  o.amount_before = o.amount
   return o
 end
 
@@ -137,6 +137,8 @@ function Damage:Apply()
   if (self.dmgtype == Damage.DAMAGE_TYPE_HEAL) then
     Damage.ApplyDirectDamage(self.target.unit, -self.amount)
   else
+    self.source:OnStartDealDamage(self)
+    self.target:OnStartTakeDamage(self)
     Damage.ApplyDirectDamage(self.target.unit, self.amount)
     self.source:OnDealDamage(self)
     self.target:OnTakeDamage(self)
@@ -148,4 +150,8 @@ function Damage:Resolve()
   self:PreApply()
   self:Control()
   self:Apply()
+end
+
+function Damage:Revoke()
+  self.amount = self.amount_before
 end

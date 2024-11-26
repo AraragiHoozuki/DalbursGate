@@ -12,8 +12,9 @@ Displace = {
     duration = 0,
     distance = 0,
     finished = false,
+    finish_when_landed = false,
     OnFinished = nil,
-    OnInterrupted = nil
+    OnInterrupted = nil,
 }
 -- 多个位移叠加方法
 Displace.OVERLAY_METHOD = {}
@@ -57,7 +58,7 @@ function Displace:UpdateTimeAndDistance()
     end
 end
 
-function Displace:Clear()
+function Displace:Finish()
     self.finished = true
 end
 

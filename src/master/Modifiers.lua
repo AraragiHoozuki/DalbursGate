@@ -4,20 +4,6 @@ require('gameSystem.ModifierSystem')
 
 Master.Modifier = {}
 
-Master.Modifier.TEST = {
-    id = 'TEST',
-    duration = -1,
-    interval = 0.1,
-    Effects = {{
-        model = 'Abilities\\Spells\\Human\\ManaFlare\\ManaFlareTarget.mdl',
-        attach_point = 'overhead'
-    }},
-    ---@param this Modifier
-    Update = function(this)
-        this.effects_scale = this.effects_scale + 0.1
-    end
-}
-
 Master.Modifier.SHOW_ORDER_STRING = {
     id = 'SHOW_ORDER_STRING',
     duration = -1,
@@ -33,40 +19,42 @@ Master.Modifier.SHOW_ORDER_STRING = {
         print(GetUnitName(this.owner.unit), ' current order: ', id, ', ', s)
     end
 }
-
-Master.Modifier.AUXILIARY_MOVE = {
-    id = 'AUXILIARY_MOVE',
+Master.Modifier.LIFE_BY_ATTACK_TIME = {
+    id = 'LIFE_BY_ATTACK_TIME',
+    icon = [[ReplaceableTextures\CommandButtons\BTNSelectHeroOff.blp]],
+    title = '计数生命',
+    description = '这个单位受到的持续伤害变为0，其他伤害变为1点',
     duration = -1,
-    interval = CoreTicker.Interval,
-    Effects = {{
-        model = 'Abilities\\Spells\\Human\\ManaFlare\\ManaFlareTarget.mdl',
-        attach_point = 'overhead'
-    }},
-    ---@param this Modifier
-    Acquire = function(this)
-        this.last_pos = Vector2:new(nil, GetUnitX(this.owner.unit), GetUnitY(this.owner.unit))
-    end,
-    ---@param this Modifier
-    Update = function(this)
-        local x = GetUnitX(this.owner.unit)
-        local y = GetUnitY(this.owner.unit)
-        local id = GetUnitCurrentOrder(this.owner.unit)
-        local dis = this.last_pos:Distance(x, y)
-        if dis > 0 and dis < 1000 * this.interval then
-                print('is moving')
-                --[[
-                local r = math.atan(y-this.last_pos.y, x - this.last_pos.x)
-                x = x + 500 * Cos(r) * this.interval
-                y = y + 500 * Sin(r) * this.interval
-                SetUnitX(this.owner.unit, x)
-                SetUnitY(this.owner.unit, y)
-                --]]
+    interval = 1,
+    strength = 10,
+    reapply_mode = Modifier.REAPPLY_MODE.NO,
+    Effects = {},
+    ---@param damage Damage
+    OnBeforeTakeDamage = function(this, damage)
+        if (damage.dmgtype == Damage.DAMAGE_TYPE_DOT) then
+            damage.control_set = 0
         else
-            print('not moving')
+            damage.control_set = 1
         end
-        this.last_pos.x = x
-        this.last_pos.y = y
     end
+}
+Master.Modifier.ON_SHALLOW_WATER_FAKE = {
+    id = 'ON_SHALLOW_WATER_FAKE',
+    hidden = true,
+    duration = 0.2,
+    interval = 0.1,
+    strength = 10,
+    reapply_mode = Modifier.REAPPLY_MODE.REFRESH,
+    Effects = {},
+}
+Master.Modifier.ON_DEEP_WATER_FAKE = {
+    id = 'ON_DEEP_WATER_FAKE',
+    hidden = true,
+    duration = 0.2,
+    interval = 0.1,
+    strength = 10,
+    reapply_mode = Modifier.REAPPLY_MODE.REFRESH,
+    Effects = {},
 }
 
 Master.Modifier.STUN = {
@@ -103,7 +91,7 @@ Master.Modifier.FROZEN = {
     description = '这个单位被冻结了，无法行动',
     duration = 3,
     interval = 1,
-    reapply_mode = Modifier.REAPPLY_MODE.COEXIST,
+    reapply_mode = Modifier.REAPPLY_MODE.REMOVE_OLD,
     Effects = {{
         model = [[Effects\IceCube.mdx]],
         attach_point = 'origin'

@@ -12,18 +12,23 @@ FogModifierStart(fogM)
 
 
 local v = CreateUnit(Player(0), FourCC('Hjai'), 0, 90, 293)
+local w = UnitWrapper.Get(v)
 BlzSetUnitMaxHP(v, 3000)
 SetUnitState(v, UNIT_STATE_LIFE, 3000)
 
-local red_dragon = CreateUnit(Player(0), FourCC('Ewar'), 0, 90, 293)
+local hfoo = CreateUnit(Player(0), FourCC('hfoo'), 0, 90, 293)
+UnitWrapper.Get(hfoo):AcquireModifierById('PROTECTOR_TARGET', w)
 
-local w = UnitWrapper.Get(v)
+local asara = CreateUnit(Player(0), FourCC('H002'), 0, 90, 293)
+
+
 
 UnitAddAbility(v, FourCC('A003'))
 UnitAddAbility(v, AbilityScripts.ICE_KNIFE.AbilityId)
 UnitAddAbility(v, AbilityScripts.ICE_WALL.AbilityId)
-AbilityScripts.AddAbilityWithIntrinsecModifier(v, Master.Modifier.NEPHTIS_SOUL_CONVERT.BindAbility)
+UnitAddAbility(v, AbilityScripts.FROZEN_MAGIC_SPHERE.AbilityId)
+UnitAddAbility(v, AbilityScripts.HELICOPTER_FALL.AbilityId)
 AbilityScripts.AddAbilityWithIntrinsecModifier(v, Master.Modifier.FREEZING_REALM.BindAbility)
 
 --AbilityScripts.AddAbilityWithIntrinsecModifier(red_dragon, Master.Modifier.RED_DRAGON_ENVIRONMENT.BindAbility)
-UnitAddAbility(red_dragon, AbilityScripts.RED_DRAGON_BREATH.AbilityId)
+UnitAddAbility(asara, FourCC('A012'))

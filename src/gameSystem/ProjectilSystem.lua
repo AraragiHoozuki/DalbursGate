@@ -28,7 +28,7 @@ ProjectilMgr.CreateAttackProjectil = function(uw_emitter, u_target, damage_value
 end
 
 
----@class Projectil
+---@class Projectil:Entity
 Projectil = Entity:ctor{}
 Projectil.tempLoc = Location(0, 0)
 Projectil.tempGroup = CreateGroup()
@@ -96,8 +96,8 @@ function Projectil:ctor(obj)
         BlzSetSpecialEffectScale(obj.model, settings.model_scale)
     end
     ProjectilMgr.Instances[obj.uuid] = obj
-    if (settings.OnCreate ~= nil ) then
-        settings.OnCreate(obj)
+    if (settings.OnCreated ~= nil ) then
+        settings.OnCreated(obj)
     end
     return obj
 end
@@ -327,7 +327,7 @@ function Projectil:CheckHit()
         self:CheckHitTarget()
     else
         local cond = Condition(function() return
-            (IsUnitEnemy(GetFilterUnit(),GetOwningPlayer(self.emitter.unit)) or self.hit_ally == true) and
+            (IsUnitEnemy(GetFilterUnit(), GetOwningPlayer(self.emitter.unit)) or self.hit_ally == true) and
             (not IsUnitType(GetFilterUnit(), UNIT_TYPE_DEAD)) and
             (self:DistanceToUnit(GetFilterUnit()) <= self.hit_range)
         end)
@@ -357,7 +357,6 @@ function Projectil:CheckHitTarget()
     elseif (self.track_type == Projectil.TRACK_TYPE_POSITION) then
         if (self.target_position ~= nil) then
             local distance = self.position:Distance3D(self.target_position.x, self.target_position.y, self.target_position.z)
-            local z_check = true
             if (distance < self.hit_range) then
                 self:Hit(nil)
             end

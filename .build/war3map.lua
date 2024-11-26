@@ -211,7 +211,7 @@ function CoreTicker.AttachAction(action, interval, id)
     if (CoreTicker.AttachedActions[id] == nil) then
         CoreTicker.AttachedActions[id] = {
             func = action,
-            interval = interval,
+            interval = interval or CoreTicker.Interval,
             elapsed = 0
         }
     else
@@ -314,8 +314,8 @@ Damage.ATTACK_TYPE_SPELL = 3 -- 法术攻击
 Damage.DAMAGE_TYPE_NORMAL = 0 --普通伤害
 Damage.DAMAGE_TYPE_DIRECT = 1 --直接伤害，不受任何减免
 Damage.DAMAGE_TYPE_PURE = 2 --纯粹伤害，不受防御、抗性减免，但是可以被伤害控制效果减免
-Damage.DAMAGE_TYPE_DOT = 3 -- damage over time
-Damage.DAMAGE_TYPE_HEAL = 4
+Damage.DAMAGE_TYPE_DOT = 3 -- damage over time 持续伤害
+Damage.DAMAGE_TYPE_HEAL = 4 -- 治疗
 
 Damage.ELEMENT_TYPE_NONE = 0
 Damage.ELEMENT_TYPE_PIERCE = 1 --穿刺
@@ -334,8 +334,8 @@ Damage.CONTROL_TYPE_SET = 0 --设置伤害值
 Damage.CONTROL_TYPE_CAPTION_MAX = 1 --伤害上限
 Damage.CONTROL_TYPE_CAPTION_MIN = 2 --伤害下限
 Damage.CONTROL_TYPE_ADD_BEFORE_RATE = 3 --基础伤害数值加成
-Damage.CONTROL_TYPE_RATE = 4 --基础伤害倍率加成
-Damage.CONTROL_TYPE_SCALE = 5 --伤害倍乘
+Damage.CONTROL_TYPE_RATE = 4 --基础伤害倍率加成（加法叠加）
+Damage.CONTROL_TYPE_SCALE = 5 --伤害倍乘（乘法叠加）
 Damage.CONTROL_TYPE_ADD_AFTER_RATE = 6 --最终伤害数值加成
 
 
@@ -374,7 +374,7 @@ function Damage:ctor(o)
   o = o or {}
   setmetatable(o, self)
   self.__index = self
-  o.amount_before_control = o.amount
+  o.amount_before = o.amount
   return o
 end
 
@@ -418,6 +418,8 @@ function Damage:Apply()
   if (self.dmgtype == Damage.DAMAGE_TYPE_HEAL) then
     Damage.ApplyDirectDamage(self.target.unit, -self.amount)
   else
+    self.source:OnStartDealDamage(self)
+    self.target:OnStartTakeDamage(self)
     Damage.ApplyDirectDamage(self.target.unit, self.amount)
     self.source:OnDealDamage(self)
     self.target:OnTakeDamage(self)
@@ -429,6 +431,10 @@ function Damage:Resolve()
   self:PreApply()
   self:Control()
   self:Apply()
+end
+
+function Damage:Revoke()
+  self.amount = self.amount_before
 end]=]
 
 P['gameSystem/EntitySystem.lua'] = [[require('utils')
@@ -969,6 +975,11 @@ end
 
 function Modifier:LV(key) return self:GetLevelValue(key) end
 
+function Modifier:ReinitDuration(v)
+    self.max_duration = v
+    self.duration = v
+end
+
 function Modifier:Refresh()
     self.duration = self.max_duration
 end
@@ -1057,10 +1068,17 @@ function Modifier:OnBeforeDealDamage(damage)
     if (self.settings.OnBeforeDealDamage ~= nil) then self.settings.OnBeforeDealDamage(self, damage) end
 end
 
+function Modifier:OnStartTakeDamage(damage)
+    if (self.settings.OnStartTakeDamage ~= nil) then self.settings.OnStartTakeDamage(self, damage) end
+end
+
+function Modifier:OnStartDealDamage(damage)
+    if (self.settings.OnStartDealDamage ~= nil) then self.settings.OnStartDealDamage(self, damage) end
+end
+
 function Modifier:OnTakeDamage(damage)
     if (self.settings.OnTakeDamage ~= nil) then self.settings.OnTakeDamage(self, damage) end
 end
-
 
 function Modifier:OnDealDamage(damage)
     if (self.settings.OnDealDamage ~= nil) then self.settings.OnDealDamage(self, damage) end
@@ -1128,7 +1146,7 @@ ProjectilMgr.CreateAttackProjectil = function(uw_emitter, u_target, damage_value
 end
 
 
----@class Projectil
+---@class Projectil:Entity
 Projectil = Entity:ctor{}
 Projectil.tempLoc = Location(0, 0)
 Projectil.tempGroup = CreateGroup()
@@ -1196,8 +1214,8 @@ function Projectil:ctor(obj)
         BlzSetSpecialEffectScale(obj.model, settings.model_scale)
     end
     ProjectilMgr.Instances[obj.uuid] = obj
-    if (settings.OnCreate ~= nil ) then
-        settings.OnCreate(obj)
+    if (settings.OnCreated ~= nil ) then
+        settings.OnCreated(obj)
     end
     return obj
 end
@@ -1427,7 +1445,7 @@ function Projectil:CheckHit()
         self:CheckHitTarget()
     else
         local cond = Condition(function() return
-            (IsUnitEnemy(GetFilterUnit(),GetOwningPlayer(self.emitter.unit)) or self.hit_ally == true) and
+            (IsUnitEnemy(GetFilterUnit(), GetOwningPlayer(self.emitter.unit)) or self.hit_ally == true) and
             (not IsUnitType(GetFilterUnit(), UNIT_TYPE_DEAD)) and
             (self:DistanceToUnit(GetFilterUnit()) <= self.hit_range)
         end)
@@ -1457,7 +1475,6 @@ function Projectil:CheckHitTarget()
     elseif (self.track_type == Projectil.TRACK_TYPE_POSITION) then
         if (self.target_position ~= nil) then
             local distance = self.position:Distance3D(self.target_position.x, self.target_position.y, self.target_position.z)
-            local z_check = true
             if (distance < self.hit_range) then
                 self:Hit(nil)
             end
@@ -1530,8 +1547,9 @@ Displace = {
     duration = 0,
     distance = 0,
     finished = false,
+    finish_when_landed = false,
     OnFinished = nil,
-    OnInterrupted = nil
+    OnInterrupted = nil,
 }
 -- 多个位移叠加方法
 Displace.OVERLAY_METHOD = {}
@@ -1575,7 +1593,7 @@ function Displace:UpdateTimeAndDistance()
     end
 end
 
-function Displace:Clear()
+function Displace:Finish()
     self.finished = true
 end
 
@@ -1618,7 +1636,7 @@ UnitMgr.RemoveUnit = function(unit)
 end
 
 UnitMgr.Update = function()
-    for _,v in pairs(UnitMgr.Units) do
+    for _, v in pairs(UnitMgr.Units) do
         v:Update()
     end
 end
@@ -1633,8 +1651,8 @@ UnitMgr.DummySpellTarget = function(speller, target, abiId, level, order_string)
 end
 --------------------------------------------------------------------
 
----@class UnitWrapper
-UnitWrapper = Entity:ctor{}
+---@class UnitWrapper:Entity
+UnitWrapper = Entity:ctor {}
 
 UnitWrapper.Get = function(unit)
     if (UnitMgr.UnitRegisteredQ(unit)) then
@@ -1667,11 +1685,14 @@ function UnitWrapper:InitCommonAbilities()
     self.CommonAbilities = {}
     self.CommonAbilities.attack_speed = BlzGetUnitAbility(self.unit, CommonAbilitiy.AttackSpeed)
 end
+
 function UnitWrapper:GetBonusAttackSpeed()
     return BlzGetAbilityRealLevelField(self.CommonAbilities.attack_speed, ABILITY_RLF_ATTACK_SPEED_INCREASE_ISX1, 0)
 end
+
 function UnitWrapper:AddAttackSpeed(value)
-    BlzSetAbilityRealLevelField(self.CommonAbilities.attack_speed, ABILITY_RLF_ATTACK_SPEED_INCREASE_ISX1, 0, self:GetBonusAttackSpeed() + value)
+    BlzSetAbilityRealLevelField(self.CommonAbilities.attack_speed, ABILITY_RLF_ATTACK_SPEED_INCREASE_ISX1, 0,
+        self:GetBonusAttackSpeed() + value)
     IncUnitAbilityLevel(self.unit, CommonAbilitiy.AttackSpeed)
     DecUnitAbilityLevel(self.unit, CommonAbilitiy.AttackSpeed)
 end
@@ -1692,17 +1713,29 @@ function UnitWrapper:UpdateCommonStats()
 end
 
 function UnitWrapper:UpdateCommonStatsBonus()
-    self.CommonStatsBonus= {}
+    self.CommonStatsBonus = {}
     for i = #(self.modifiers), 1, -1 do
         local mod = self.modifiers[i]
-        for k,v in pairs(mod.CommonStatsBonus) do
+        for k, v in pairs(mod.CommonStatsBonus) do
             self.CommonStatsBonus[k] = (self.CommonStatsBonus[k] or 0) + v
         end
     end
 end
 
+function UnitWrapper:AddHP(v)
+    SetUnitState(self.unit, UNIT_STATE_LIFE, GetUnitState(self.unit, UNIT_STATE_LIFE) + v)
+end
+function UnitWrapper:AddHPRate(r)
+    local hp = GetUnitState(self.unit, UNIT_STATE_LIFE)
+    SetUnitState(self.unit, UNIT_STATE_LIFE, hp + hp * r/100)
+end
+
+function UnitWrapper:DeadQ()
+    return IsUnitType(self.unit, UNIT_TYPE_DEAD)
+end
+
 function UnitWrapper:InitGravityDisplace()
-    self.gravityDisplace = Displace:ctor{
+    self.gravityDisplace = Displace:ctor {
         velocity = Vector3:new(nil, 0, 0, 0),
         accelerate = Vector3:new(nil, 0, 0, -GameConstants.Gravity),
         max_distance = 0,
@@ -1722,7 +1755,7 @@ function UnitWrapper:EnableHeightChange()
     if (self.height_change_enabled ~= true) then
         UnitAddAbility(self.unit, FourCC('Arav'))
         UnitRemoveAbility(self.unit, FourCC('Arav'))
-        self.height_change_enabled =  true
+        self.height_change_enabled = true
     end
 end
 
@@ -1735,23 +1768,26 @@ function UnitWrapper:UpdateDisplaces()
         if d.finished then
             table.remove(self.displaces, i)
         else
-            if d.interrupt_action then 
+            if d.interrupt_action then
                 IssueImmediateOrderById(self.unit, 851972) -- stop order
             end
             x, y, z = d:Calc(x, y, z)
+            if (d.finish_when_landed and z - Entity.GetLocationZ(x, y) <= self.defaultFlyHeight) then
+                d:Finish()
+            end
         end
     end
-    local height = z - Entity.GetLocationZ(x,y)
+    local height = z - Entity.GetLocationZ(x, y)
     if height > self.defaultFlyHeight + 1 then
         x, y, z = self.gravityDisplace:Calc(x, y, z)
     else
         self.gravityDisplace.velocity.z = 0
-        z = Entity.GetLocationZ(x,y) + self.defaultFlyHeight
+        z = Entity.GetLocationZ(x, y) + self.defaultFlyHeight
     end
     SetUnitX(self.unit, x)
     SetUnitY(self.unit, y)
     self:EnableHeightChange()
-    SetUnitFlyHeight(self.unit, z - Entity.GetLocationZ(x,y), 0)
+    SetUnitFlyHeight(self.unit, z - Entity.GetLocationZ(x, y), 0)
 end
 
 function UnitWrapper:AddDisplace(d)
@@ -1768,6 +1804,7 @@ function UnitWrapper:AcquireModifier(settings, lu_applier, bindAbility)
     local mod = Modifier.Create(self, settings, lu_applier, bindAbility)
     return self:CheckModifierReapply(mod)
 end
+
 function UnitWrapper:AcquireModifierById(mid, lu_applier, bindAbility)
     local mod = Modifier.CreateById(self, mid, lu_applier, bindAbility)
     return self:CheckModifierReapply(mod)
@@ -1777,29 +1814,33 @@ function UnitWrapper:ApplyModifier(settings, lu_target, bindAbility)
     local mod = Modifier.Create(lu_target, settings, self, bindAbility)
     return lu_target:CheckModifierReapply(mod)
 end
+
 function UnitWrapper:ApplyModifierById(mid, lu_target, bindAbility)
     local mod = Modifier.CreateById(lu_target, mid, self, bindAbility)
     return lu_target:CheckModifierReapply(mod)
 end
 
 function UnitWrapper:IsModifierTypeAffected(mid)
-    for k,v in pairs(self.modifiers) do
+    for k, v in pairs(self.modifiers) do
         if v.id == mid then
             return true
         end
     end
     return false
 end
+
+---@return Modifier|nil
 function UnitWrapper:GetAffectedModifier(mid)
-    for _,v in pairs(self.modifiers) do
+    for _, v in pairs(self.modifiers) do
         if v.id == mid then
             return v
         end
     end
     return nil
 end
+
 function UnitWrapper:GetAffectedModifierIndex(mid)
-    for i,v in ipairs(self.modifiers) do
+    for i, v in ipairs(self.modifiers) do
         if v.id == mid then
             return i
         end
@@ -1847,10 +1888,12 @@ function UnitWrapper:RemoveModifier(mod)
     local index = table.indexOf(self.modifiers, mod)
     self:RemoveModifierByIndex(index)
 end
+
 function UnitWrapper:RemoveModifierById(mid)
     local index = self:GetAffectedModifierIndex(mid)
     self:RemoveModifierByIndex(index)
 end
+
 function UnitWrapper:RemoveModifierByIndex(index)
     if index ~= nil then
         local mod = table.remove(self.modifiers, index)
@@ -1859,7 +1902,7 @@ function UnitWrapper:RemoveModifierByIndex(index)
 end
 
 function UnitWrapper:HasTag(tag)
-    for _,m in ipairs(self.modifiers) do
+    for _, m in ipairs(self.modifiers) do
         if m.tags[tag] ~= nil then
             return true
         end
@@ -1868,32 +1911,104 @@ function UnitWrapper:HasTag(tag)
 end
 
 function UnitWrapper:OnDeath()
-    for _,m in pairs(self.modifiers) do
+    for _, m in pairs(self.modifiers) do
         m:OnDeath()
     end
 end
 
 function UnitWrapper:OnBeforeDealDamage(damage)
-    for _,m in pairs(self.modifiers) do
+    for _, m in pairs(self.modifiers) do
         m:OnBeforeDealDamage(damage)
     end
 end
+
 function UnitWrapper:OnBeforeTakeDamage(damage)
-    for _,m in pairs(self.modifiers) do
+    for _, m in pairs(self.modifiers) do
         m:OnBeforeTakeDamage(damage)
     end
 end
 
+function UnitWrapper:OnStartDealDamage(damage)
+    for _, m in pairs(self.modifiers) do
+        m:OnStartDealDamage(damage)
+    end
+end
+
+function UnitWrapper:OnStartTakeDamage(damage)
+    for _, m in pairs(self.modifiers) do
+        m:OnStartTakeDamage(damage)
+    end
+end
+
 function UnitWrapper:OnDealDamage(damage)
-    for _,m in pairs(self.modifiers) do
+    for _, m in pairs(self.modifiers) do
         m:OnDealDamage(damage)
     end
 end
 
 function UnitWrapper:OnTakeDamage(damage)
-    for _,m in pairs(self.modifiers) do
+    for _, m in pairs(self.modifiers) do
         m:OnTakeDamage(damage)
     end
+end
+
+---@return number
+function UnitWrapper:GetX()
+    return GetUnitX(self.unit)
+end
+
+---@return number
+function UnitWrapper:GetY()
+    return GetUnitY(self.unit)
+end
+
+---@param uw UnitWrapper
+---@return number
+function UnitWrapper:DistanceToUnit(uw)
+    local dx = uw:GetX() - self:GetX()
+    local dy = uw:GetY() - self:GetY()
+    return math.sqrt(dx * dx + dy * dy)
+end
+
+---@return boolean
+function UnitWrapper:OnDeepWaterQ()
+    if self:IsModifierTypeAffected('ON_DEEP_WATER_FAKE') then return true end
+    local x = self:GetX()
+    local y = self:GetY()
+    if not IsTerrainPathable(x, y, PATHING_TYPE_FLOATABILITY) then
+        if not IsTerrainPathable(x, y, PATHING_TYPE_WALKABILITY) then
+            return false
+        else
+            return true
+        end
+    end
+    return false
+end
+
+---@return boolean
+function UnitWrapper:OnShallowWaterQ()
+    if self:IsModifierTypeAffected('ON_SHALLOW_WATER_FAKE') then return true end
+    local x = self:GetX()
+    local y = self:GetY()
+    if not IsTerrainPathable(x, y, PATHING_TYPE_FLOATABILITY) then
+        if not IsTerrainPathable(x, y, PATHING_TYPE_WALKABILITY) then
+            return true
+        else
+            return false
+        end
+    end
+    return false
+end
+
+---@return boolean
+function UnitWrapper:OnWaterQ()
+    if self:IsModifierTypeAffected('ON_SHALLOW_WATER_FAKE') or self:IsModifierTypeAffected('ON_DEEP_WATER_FAKE') then return true end
+    local x = self:GetX()
+    local y = self:GetY()
+    if not IsTerrainPathable(x, y, PATHING_TYPE_FLOATABILITY) then
+        return true
+    end
+    return false
 end]]
 
 P['gameSystem/init.lua'] = [[require('gameSystem.Settings')
@@ -1980,21 +2095,26 @@ FogModifierStart(fogM)
 
 
 local v = CreateUnit(Player(0), FourCC('Hjai'), 0, 90, 293)
+local w = UnitWrapper.Get(v)
 BlzSetUnitMaxHP(v, 3000)
 SetUnitState(v, UNIT_STATE_LIFE, 3000)
 
-local red_dragon = CreateUnit(Player(0), FourCC('Ewar'), 0, 90, 293)
+local hfoo = CreateUnit(Player(0), FourCC('hfoo'), 0, 90, 293)
+UnitWrapper.Get(hfoo):AcquireModifierById('PROTECTOR_TARGET', w)
 
-local w = UnitWrapper.Get(v)
+local asara = CreateUnit(Player(0), FourCC('H002'), 0, 90, 293)
+
+
 
 UnitAddAbility(v, FourCC('A003'))
 UnitAddAbility(v, AbilityScripts.ICE_KNIFE.AbilityId)
 UnitAddAbility(v, AbilityScripts.ICE_WALL.AbilityId)
-AbilityScripts.AddAbilityWithIntrinsecModifier(v, Master.Modifier.NEPHTIS_SOUL_CONVERT.BindAbility)
+UnitAddAbility(v, AbilityScripts.FROZEN_MAGIC_SPHERE.AbilityId)
+UnitAddAbility(v, AbilityScripts.HELICOPTER_FALL.AbilityId)
 AbilityScripts.AddAbilityWithIntrinsecModifier(v, Master.Modifier.FREEZING_REALM.BindAbility)
 
 --AbilityScripts.AddAbilityWithIntrinsecModifier(red_dragon, Master.Modifier.RED_DRAGON_ENVIRONMENT.BindAbility)
-UnitAddAbility(red_dragon, AbilityScripts.RED_DRAGON_BREATH.AbilityId)]]
+UnitAddAbility(asara, FourCC('A012'))]]
 
 P['master/MasterBase.lua'] = [[Master = {}]]
 
@@ -2003,20 +2123,6 @@ require('master.MasterBase')
 require('gameSystem.ModifierSystem')
 
 Master.Modifier = {}
-
-Master.Modifier.TEST = {
-    id = 'TEST',
-    duration = -1,
-    interval = 0.1,
-    Effects = {{
-        model = 'Abilities\\Spells\\Human\\ManaFlare\\ManaFlareTarget.mdl',
-        attach_point = 'overhead'
-    }},
-    ---@param this Modifier
-    Update = function(this)
-        this.effects_scale = this.effects_scale + 0.1
-    end
-}
 
 Master.Modifier.SHOW_ORDER_STRING = {
     id = 'SHOW_ORDER_STRING',
@@ -2033,40 +2139,42 @@ Master.Modifier.SHOW_ORDER_STRING = {
         print(GetUnitName(this.owner.unit), ' current order: ', id, ', ', s)
     end
 }
-
-Master.Modifier.AUXILIARY_MOVE = {
-    id = 'AUXILIARY_MOVE',
+Master.Modifier.LIFE_BY_ATTACK_TIME = {
+    id = 'LIFE_BY_ATTACK_TIME',
+    icon = [[ReplaceableTextures\CommandButtons\BTNSelectHeroOff.blp]],
+    title = '计数生命',
+    description = '这个单位受到的持续伤害变为0，其他伤害变为1点',
     duration = -1,
-    interval = CoreTicker.Interval,
-    Effects = {{
-        model = 'Abilities\\Spells\\Human\\ManaFlare\\ManaFlareTarget.mdl',
-        attach_point = 'overhead'
-    }},
-    ---@param this Modifier
-    Acquire = function(this)
-        this.last_pos = Vector2:new(nil, GetUnitX(this.owner.unit), GetUnitY(this.owner.unit))
-    end,
-    ---@param this Modifier
-    Update = function(this)
-        local x = GetUnitX(this.owner.unit)
-        local y = GetUnitY(this.owner.unit)
-        local id = GetUnitCurrentOrder(this.owner.unit)
-        local dis = this.last_pos:Distance(x, y)
-        if dis > 0 and dis < 1000 * this.interval then
-                print('is moving')
-                --[[
-                local r = math.atan(y-this.last_pos.y, x - this.last_pos.x)
-                x = x + 500 * Cos(r) * this.interval
-                y = y + 500 * Sin(r) * this.interval
-                SetUnitX(this.owner.unit, x)
-                SetUnitY(this.owner.unit, y)
-                --]]
+    interval = 1,
+    strength = 10,
+    reapply_mode = Modifier.REAPPLY_MODE.NO,
+    Effects = {},
+    ---@param damage Damage
+    OnBeforeTakeDamage = function(this, damage)
+        if (damage.dmgtype == Damage.DAMAGE_TYPE_DOT) then
+            damage.control_set = 0
         else
-            print('not moving')
+            damage.control_set = 1
         end
-        this.last_pos.x = x
-        this.last_pos.y = y
     end
+}
+Master.Modifier.ON_SHALLOW_WATER_FAKE = {
+    id = 'ON_SHALLOW_WATER_FAKE',
+    hidden = true,
+    duration = 0.2,
+    interval = 0.1,
+    strength = 10,
+    reapply_mode = Modifier.REAPPLY_MODE.REFRESH,
+    Effects = {},
+}
+Master.Modifier.ON_DEEP_WATER_FAKE = {
+    id = 'ON_DEEP_WATER_FAKE',
+    hidden = true,
+    duration = 0.2,
+    interval = 0.1,
+    strength = 10,
+    reapply_mode = Modifier.REAPPLY_MODE.REFRESH,
+    Effects = {},
 }
 
 Master.Modifier.STUN = {
@@ -2103,7 +2211,7 @@ Master.Modifier.FROZEN = {
     description = '这个单位被冻结了，无法行动',
     duration = 3,
     interval = 1,
-    reapply_mode = Modifier.REAPPLY_MODE.COEXIST,
+    reapply_mode = Modifier.REAPPLY_MODE.REMOVE_OLD,
     Effects = {{
         model = [[Effects\IceCube.mdx]],
         attach_point = 'origin'
@@ -2935,21 +3043,22 @@ P['scripts/IceMaiden.lua'] = [=[Master.Modifier.FREEZING_REALM = {
         attach_point = 'origin'
     } },
     LevelValues = {
-        Range = {900}
+        Range = { 900 }
     },
     ---@param this Modifier
     Update = function(this)
         local cond = Condition(function()
             local unit = GetFilterUnit()
             if (not IsUnitType(unit, UNIT_TYPE_DEAD))
-            and IsUnitEnemy(unit, GetOwningPlayer(this.owner.unit))
-            and not UnitWrapper.Get(unit):IsModifierTypeAffected('FROZEN')
-            and not UnitWrapper.Get(unit):IsModifierTypeAffected('FREEZING_REALM_IMMUNE') then
+                and IsUnitEnemy(unit, GetOwningPlayer(this.owner.unit))
+                and not UnitWrapper.Get(unit):IsModifierTypeAffected('FROZEN')
+                and not UnitWrapper.Get(unit):IsModifierTypeAffected('FREEZING_REALM_IMMUNE') then
                 this.owner:ApplyModifier(Master.Modifier.FREEZING_REALM_TARGET, UnitWrapper.Get(unit))
             end
             return false
         end)
-        GroupEnumUnitsInRange(Entity.tempGroup, GetUnitX(this.owner.unit), GetUnitY(this.owner.unit), this:LV('Range'), cond)
+        GroupEnumUnitsInRange(Entity.tempGroup, GetUnitX(this.owner.unit), GetUnitY(this.owner.unit), this:LV('Range'),
+            cond)
         DestroyBoolExpr(cond)
     end
 }
@@ -2968,24 +3077,25 @@ Master.Modifier.FREEZING_REALM_TARGET = {
         attach_point = 'overhead'
     } },
     LevelValues = {
-        MaxMoveSpeedDown = {400},
-        MoveSpeedDownPerSecond = {200},
-        Range = {900},
-        FrozenThreshold = {25},
-        FrozenTime = {1}
+        MaxMoveSpeedDown = { 400 },
+        MoveSpeedDownPerSecond = { 200 },
+        Range = { 900 },
+        FrozenThreshold = { 25 },
+        FrozenTime = { 1 }
     },
     ---@param this Modifier
     Update = function(this)
         local dx = GetUnitX(this.owner.unit) - GetUnitX(this.applier.unit)
         local dy = GetUnitY(this.owner.unit) - GetUnitY(this.applier.unit)
-        local dis = math.sqrt(dx*dx + dy*dy)
-        local rate = 1 - dis/this:LV('Range')
+        local dis = math.sqrt(dx * dx + dy * dy)
+        local rate = 1 - dis / this:LV('Range')
         if rate < 0 then rate = 0 end
         local down = this:LV('MoveSpeedDownPerSecond') * rate * this.interval
         this.CommonStatsBonus.movespeed = (this.CommonStatsBonus.movespeed or 0) - down
         this.CustomValues.MoveSpeedDown = -this.CommonStatsBonus.movespeed
         if (GetUnitMoveSpeed(this.owner.unit) <= this:LV('FrozenThreshold')) then
-            local mod = this.owner:AcquireModifierById('FROZEN', this.applier, Master.Modifier.FREEZING_REALM.BindAbility)
+            local mod = this.owner:AcquireModifierById('FROZEN', this.applier, Master.Modifier.FREEZING_REALM
+                .BindAbility)
             if (mod ~= nil) then
                 mod.max_duration = this:LV('FrozenTime')
                 mod.duration = this:LV('FrozenTime')
@@ -3036,11 +3146,12 @@ Master.Projectil.ICE_KNIFE = {
     offsetZ = 50,
     ---@param this Projectil
     OnHit = function(this)
-        DestroyEffect(AddSpecialEffect([[Abilities\Spells\Undead\FrostNova\FrostNovaTarget.mdl]], this.position.x, this.position.y))
+        DestroyEffect(AddSpecialEffect([[Abilities\Spells\Undead\FrostNova\FrostNovaTarget.mdl]], this.position.x,
+            this.position.y))
         local cond = Condition(function()
             local unit = GetFilterUnit()
             if (not IsUnitType(GetFilterUnit(), UNIT_TYPE_DEAD)) and IsUnitEnemy(unit, this:GetPlayer()) then
-                local damage = Damage:ctor{
+                local damage = Damage:ctor {
                     source = this.emitter,
                     target = UnitWrapper.Get(unit),
                     amount = 75,
@@ -3065,7 +3176,8 @@ AbilityScripts.ICE_WALL = {
     AbilityId = FourCC('A00W'),
     ICE_BLOCK_DISTANCE = 64,
     MAX_ICE_BLOCK_NUM = 20,
-    PUSH_SPPED = 1000,
+    DURATION = 30,
+    PUSH_SPPED = 1500,
     PUSH_DURATION = 0.3,
     Cast = function()
         local caster = UnitWrapper.Get(GetTriggerUnit())
@@ -3077,16 +3189,16 @@ AbilityScripts.ICE_WALL = {
     end,
     CastFirst = function()
         local caster = UnitWrapper.Get(GetTriggerUnit())
-        local mod = caster:AcquireModifier(Master.Modifier.ICE_WALL_FIRST_CAST, caster, AbilityScripts.ICE_WALL.AbilityId)
+        local mod = caster:AcquireModifier(Master.Modifier.ICE_WALL_FIRST_CAST, caster, AbilityScripts.ICE_WALL
+            .AbilityId)
         if mod then
-            mod.CustomValues.IceWallFirstPos = Vector3:ctor{
+            mod.CustomValues.IceWallFirstPos = Vector3:ctor {
                 x = GetSpellTargetX(),
                 y = GetSpellTargetY(),
             }
             CoreTicker.RegisterDelayedAction(function()
                 BlzEndUnitAbilityCooldown(caster.unit, AbilityScripts.ICE_WALL.AbilityId)
             end, CoreTicker.Interval)
-            
         end
     end,
     CastEnd = function()
@@ -3104,15 +3216,12 @@ AbilityScripts.ICE_WALL = {
             repeat
                 x = x + AbilityScripts.ICE_WALL.ICE_BLOCK_DISTANCE * Cos(angle)
                 y = y + AbilityScripts.ICE_WALL.ICE_BLOCK_DISTANCE * Sin(angle)
-                local start_efx = AddSpecialEffect([[Abilities\Spells\Undead\FreezingBreath\FreezingBreathMissile.mdl]], x, y)
-                BlzSetSpecialEffectTimeScale(start_efx, 5)
-                DestroyEffect(start_efx)
                 local v = AbilityScripts.ICE_WALL.PUSH_SPPED
-                local a = -v/AbilityScripts.ICE_WALL.PUSH_DURATION
+                local a = -v / AbilityScripts.ICE_WALL.PUSH_DURATION
                 local cond = Condition(function()
                     local u = GetFilterUnit()
-                    local push_angle = math.atan(GetUnitY(u)-y,GetUnitX(u)-x)
-                    UnitWrapper.Get(u):AddDisplace(Displace:ctor{
+                    local push_angle = math.atan(GetUnitY(u) - y, GetUnitX(u) - x)
+                    UnitWrapper.Get(u):AddDisplace(Displace:ctor {
                         velocity = Vector3:new(nil, v * Cos(push_angle), v * Sin(push_angle), 0),
                         accelerate = Vector3:new(nil, a * Cos(push_angle), a * Sin(push_angle), 0),
                         max_distance = 0,
@@ -3122,28 +3231,42 @@ AbilityScripts.ICE_WALL = {
                         efx = [[Abilities\Weapons\FrostWyrmMissile\FrostWyrmMissile.mdl]],
                         efx_interval = 0.1,
                     })
+                    return false
                 end)
                 GroupEnumUnitsInRange(Entity.tempGroup, x, y, 64, cond)
                 DestroyBoolExpr(cond)
-                MapObject:ctor{
+                local mo = MapObject:ctor {
                     x = x, y = y, z = 0,
-                    duration = 10,
-                    model_path = [[Doodads\Icecrown\Rocks\Icecrown_Crystal\Icecrown_Crystal0.mdl]],
+                    duration = AbilityScripts.ICE_WALL.DURATION,
+                    model_path = [[Abilities\Spells\Undead\FreezingBreath\FreezingBreathTargetArt.mdl]],
+                    creator = caster,
                     awake_handlers = {
                         function(this)
                             this.CustomValues.PathBlocker = CreateDestructable(FourCC('YTfb'), x, y, 0, 1, 0)
+                            BlzSetSpecialEffectTimeScale(this.model, 3)
                         end
                     },
                     remove_handlers = {
                         function(this)
-                            local end_efx = AddSpecialEffect([[Abilities\Spells\Undead\FreezingBreath\FreezingBreathMissile.mdl]], this.position.x, this.position.y)
-                            BlzSetSpecialEffectTimeScale(end_efx, 5)
-                            DestroyEffect(end_efx)
-                            BlzSetSpecialEffectZ(this.model, -10000)
+                            --BlzSetSpecialEffectZ(this.model, -10000)
                             RemoveDestructable(this.CustomValues.PathBlocker)
                         end
                     }
                 }
+                mo:AddUpdateHandler(function(this)
+                    local cold_cond = Condition(function()
+                        local u = GetFilterUnit()
+                        if IsUnitEnemy(u, GetOwningPlayer(this.creator.unit))
+                            and not IsUnitType(u, UNIT_TYPE_DEAD) then
+                            UnitWrapper.Get(u):AcquireModifierById('ICE_WALL_CHILLINESS', this.creator)
+                        end
+                        return false
+                    end)
+                    GroupEnumUnitsInRange(Entity.tempGroup, this.position.x, this.position.y, 128, cold_cond)
+                    DestroyBoolExpr(cold_cond)
+                    DestroyEffect(AddSpecialEffect([[Abilities\Spells\Undead\FreezingBreath\FreezingBreathMissile.mdl]],
+                        this.position.x, this.position.y))
+                end, 1)
                 num = num + 1
             until num >= AbilityScripts.ICE_WALL.MAX_ICE_BLOCK_NUM or AbilityScripts.ICE_WALL.ICE_BLOCK_DISTANCE * num > dis
             mod:Remove()
@@ -3157,8 +3280,125 @@ Master.Modifier.ICE_WALL_FIRST_CAST = {
     duration = -1,
     interval = 999,
     reapply_mode = Modifier.REAPPLY_MODE.NO,
-    BindAbility = FourCC('A00U'),
+    BindAbility = AbilityScripts.ICE_WALL.AbilityId,
     Effects = {},
+}
+
+Master.Modifier.ICE_WALL_CHILLINESS = {
+    id = 'ICE_WALL_CHILLINESS',
+    icon = [[ReplaceableTextures\CommandButtons\BTNGlacier.blp]],
+    title = '寒气',
+    description = '这个单位受寒气影响，移动速度降低50, 受到的寒冷伤害增加25%',
+    duration = 2,
+    interval = 1,
+    reapply_mode = Modifier.REAPPLY_MODE.REFRESH,
+    BindAbility = AbilityScripts.ICE_WALL.AbilityId,
+    Effects = {},
+    OnAcquired = function(this)
+        this.CommonStatsBonus.movespeed = -50
+    end,
+    ---@param damage Damage
+    OnBeforeTakeDamage = function(this, damage)
+        if damage.eletype == Damage.ELEMENT_TYPE_KRYO then
+            damage.control_rate = damage.control_rate + 25
+        end
+    end
+}
+
+AbilityScripts.FROZEN_MAGIC_SPHERE = {
+    AbilityId = FourCC('A00X'),
+    Cast = function()
+        local caster = UnitWrapper.Get(GetTriggerUnit())
+        local tx = GetSpellTargetX()
+        local ty = GetSpellTargetY()
+        local orb = CreateUnit(GetOwningPlayer(caster.unit), FourCC('o001'), tx, ty, 0)
+        UnitWrapper.Get(orb):AcquireModifier(Master.Modifier.FROZEN_MAGIC_SPHERE_EFFECTS, caster,
+            AbilityScripts.FROZEN_MAGIC_SPHERE.AbilityId)
+        UnitApplyTimedLife(orb, FourCC('BTLF'), 60)
+    end
+}
+
+Master.Modifier.FROZEN_MAGIC_SPHERE_EFFECTS = {
+    id = 'FROZEN_MAGIC_SPHERE_EFFECTS',
+    icon = [[ReplaceableTextures\CommandButtons\BTNOrbOfFrost.blp]],
+    title = '冰封法球',
+    description = [[给予周围敌人冰封效果：移动速度降低50，被冻结时，冻结时间延长1秒。
+    受到伤害时放出一道冲击，周围350范围内的敌方单位有50%的概率被冻结0.3秒。]],
+    duration = -1,
+    interval = 0.1,
+    reapply_mode = Modifier.REAPPLY_MODE.NO,
+    remove_on_death = false,
+    BindAbility = AbilityScripts.FROZEN_MAGIC_SPHERE.AbilityId,
+    Effects = {},
+    LevelValues = {
+        Range = { 900 }
+    },
+    ---@param this Modifier
+    Update = function(this)
+        local cond = Condition(function()
+            local unit = GetFilterUnit()
+            if (not IsUnitType(unit, UNIT_TYPE_DEAD))
+                and IsUnitEnemy(unit, GetOwningPlayer(this.owner.unit)) 
+                and not UnitWrapper.Get(unit):IsModifierTypeAffected('FROZEN')then
+                this.owner:ApplyModifier(Master.Modifier.FROZEN_MAGIC_SPHERE_EXTEND_FROZEN, UnitWrapper.Get(unit))
+            end
+            return false
+        end)
+        GroupEnumUnitsInRange(Entity.tempGroup, GetUnitX(this.owner.unit), GetUnitY(this.owner.unit), this:LV('Range'),
+            cond)
+        DestroyBoolExpr(cond)
+    end,
+     ---@param damage Damage
+     OnTakeDamage = function(this, damage)
+        if damage.amount ~= 0 then
+            local cond = Condition(function()
+                local unit = GetFilterUnit()
+                if (not IsUnitType(unit, UNIT_TYPE_DEAD))
+                    and IsUnitEnemy(unit, GetOwningPlayer(this.owner.unit)) 
+                    and math.random(1,100) <= 50 then
+                    local frz = this.owner:ApplyModifier(Master.Modifier.FROZEN, UnitWrapper.Get(unit))
+                    frz.max_duration = 0.3
+                    frz.duration = 0.3
+                end
+                return false
+            end)
+            GroupEnumUnitsInRange(Entity.tempGroup, GetUnitX(this.owner.unit), GetUnitY(this.owner.unit), 350, cond)
+            DestroyBoolExpr(cond)
+            DestroyEffect(AddSpecialEffect([[Effects\FrostNova.mdx]], this.owner:GetX(), this.owner:GetY()))
+        end
+    end
+}
+
+Master.Modifier.FROZEN_MAGIC_SPHERE_EXTEND_FROZEN = {
+    id = 'FROZEN_MAGIC_SPHERE_EXTEND_FROZEN',
+    icon = [[ReplaceableTextures\CommandButtons\BTNOrbOfFrost.blp]],
+    title = '冰封',
+    description = '这个单位移动速度降低50，被冻结时，冻结时间延长1秒',
+    duration = -1,
+    interval = 0.1,
+    reapply_mode = Modifier.REAPPLY_MODE.NO,
+    BindAbility = AbilityScripts.FROZEN_MAGIC_SPHERE.AbilityId,
+    Effects = {},
+    LevelValues = {
+        Range = { 900 }
+    },
+    OnAcquired = function(this)
+        this.CommonStatsBonus.movespeed = -50
+    end,
+    ---@param this Modifier
+    Update = function(this)
+        local dis = this.owner:DistanceToUnit(this.applier)
+        if dis > this:LV('Range') then
+            this:Remove()
+            return
+        end
+        local frz = this.owner:GetAffectedModifier('FROZEN')
+        if frz then
+            frz.max_duration = frz.max_duration + 1
+            frz.duration = frz.duration + 1
+            this:Remove()
+        end
+    end
 }]=]
 
 P['scripts/Misc.lua'] = [=[require('gameSystem')
@@ -3177,15 +3417,16 @@ Master.Modifier.THIRST_OF_BLOOD = {
     remove_on_death = false,
     Effects = {},
     LevelValues = {
-        ProbabilityPerHPRateLost = {1, 1.2, 1.4, 1.6},
-        HPDrainRate = {100}
+        ProbabilityPerHPRateLost = { 1, 1.2, 1.4, 1.6 },
+        HPDrainRate = { 100 }
     },
     ---@param this Modifier
     ---@param damage Damage
     DealDamage = function(this, damage)
-        local p = this:LV('ProbabilityPerHPRateLost') * (1 - GetWidgetLife(this.owner.unit)/BlzGetUnitMaxHP(this.owner.unit)) * 100
-        if damage.atktype == Damage.ATTACK_TYPE_MELEE and math.random(0,100) < p then
-            local heal = Damage:ctor{
+        local p = this:LV('ProbabilityPerHPRateLost') *
+            (1 - GetWidgetLife(this.owner.unit) / BlzGetUnitMaxHP(this.owner.unit)) * 100
+        if damage.atktype == Damage.ATTACK_TYPE_MELEE and math.random(0, 100) < p then
+            local heal = Damage:ctor {
                 source = this.owner,
                 target = this.owner,
                 amount = damage.amount * this:LV('HPDrainRate') / 100,
@@ -3247,7 +3488,7 @@ AbilityScripts.BOUNCING_INFERNAL = {
 Master.Projectil.BOUNCING_INFERNAL = {
     model = [[Abilities\Weapons\DemonHunterMissile\DemonHunterMissile.mdl]],
     model_scale = 2,
-    speed = 750, 
+    speed = 750,
     no_gravity = false,
     hit_range = 50,
     hit_terrain = true,
@@ -3274,12 +3515,13 @@ Master.Projectil.BOUNCING_INFERNAL = {
         this.speed = this.speed * 0.8
         this.pitch = -this.pitch
         this:AdjustVelocity()
-        DestroyEffect(AddSpecialEffect([[Abilities\Spells\Orc\WarStomp\WarStompCaster.mdl]], this.position.x, this.position.y))
+        DestroyEffect(AddSpecialEffect([[Abilities\Spells\Orc\WarStomp\WarStompCaster.mdl]], this.position.x,
+            this.position.y))
         this.CustomValues.BounceCount = this.CustomValues.BounceCount + 1
         local cond = Condition(function()
             local unit = GetFilterUnit()
             if (not IsUnitType(GetFilterUnit(), UNIT_TYPE_DEAD)) and IsUnitEnemy(unit, this:GetPlayer()) then
-                local damage = Damage:ctor{
+                local damage = Damage:ctor {
                     source = this.emitter,
                     target = UnitWrapper.Get(unit),
                     amount = 100,
@@ -3292,8 +3534,8 @@ Master.Projectil.BOUNCING_INFERNAL = {
                 local dy = GetUnitY(damage.target.unit) - this.position.y
                 local r = math.atan(dy, dx)
                 local v = 1200
-                local a = - v / 0.4
-                UnitWrapper.Get(unit):AddDisplace(Displace:ctor{
+                local a = -v / 0.4
+                UnitWrapper.Get(unit):AddDisplace(Displace:ctor {
                     velocity = Vector3:new(nil, v * Cos(r), v * Sin(r), 0),
                     accelerate = Vector3:new(nil, a * Cos(r), a * Sin(r), 0),
                     max_distance = 0,
@@ -3325,7 +3567,7 @@ Master.Modifier.BLOOD_THIRST_AURA = {
     Effects = {},
     BindAbility = FourCC('AUav'),
     LevelValues = {
-        Range = {900,900,900,900}
+        Range = { 900, 900, 900, 900 }
     },
     OnAcquired = function(this)
         this.apply_checker_group = CreateGroup()
@@ -3333,15 +3575,16 @@ Master.Modifier.BLOOD_THIRST_AURA = {
     ---@param this Modifier
     Update = function(this)
         local cond = Condition(function()
-            if (not IsUnitType(GetFilterUnit(), UNIT_TYPE_DEAD)) and 
-            (not IsUnitType(GetFilterUnit(), UNIT_TYPE_STRUCTURE)) and
-            (not IsUnitType(GetFilterUnit(), UNIT_TYPE_MECHANICAL)) and (IsUnitAlly(GetFilterUnit(), GetOwningPlayer(this.owner.unit))) then
+            if (not IsUnitType(GetFilterUnit(), UNIT_TYPE_DEAD)) and
+                (not IsUnitType(GetFilterUnit(), UNIT_TYPE_STRUCTURE)) and
+                (not IsUnitType(GetFilterUnit(), UNIT_TYPE_MECHANICAL)) and (IsUnitAlly(GetFilterUnit(), GetOwningPlayer(this.owner.unit))) then
                 local uw = UnitWrapper.Get(GetFilterUnit())
                 uw:AcquireModifierById('BLOOD_THIRST_AURA_EFFECT')
             end
             return false
         end)
-        GroupEnumUnitsInRange(this.apply_checker_group, GetUnitX(this.owner.unit), GetUnitY(this.owner.unit), this:LV('Range'), cond)
+        GroupEnumUnitsInRange(this.apply_checker_group, GetUnitX(this.owner.unit), GetUnitY(this.owner.unit),
+            this:LV('Range'), cond)
     end,
     OnRemoved = function(this)
         DestroyGroup(this.apply_checker_group)
@@ -3353,13 +3596,13 @@ Master.Modifier.BLOOD_THIRST_AURA_EFFECT = {
     interval = 0.1,
     reapply_mode = Modifier.REAPPLY_MODE.REFRESH,
     remove_on_death = true,
-    Effects = {{
+    Effects = { {
         model = [[Abilities\Spells\Orc\Bloodlust\BloodlustTarget.mdl]],
         attach_point = 'hand left'
-    }},
+    } },
     BindAbility = FourCC('AUav'),
     LevelValues = {
-        HPDrainRate = {15,25,40,50}
+        HPDrainRate = { 15, 25, 40, 50 }
     },
     OnAcquired = function(this)
         this.apply_checker_group = CreateGroup()
@@ -3371,7 +3614,7 @@ Master.Modifier.BLOOD_THIRST_AURA_EFFECT = {
     ---@param damage Damage
     OnDealDamage = function(this, damage)
         if damage.atktype == Damage.ATTACK_TYPE_MELEE then
-            local heal = Damage:ctor{
+            local heal = Damage:ctor {
                 source = this.owner,
                 target = this.owner,
                 amount = damage.amount * this:LV('HPDrainRate') / 100,
@@ -3380,7 +3623,8 @@ Master.Modifier.BLOOD_THIRST_AURA_EFFECT = {
                 eletype = Damage.ELEMENT_TYPE_NONE,
             }
             heal:Resolve()
-            DestroyEffect(AddSpecialEffect([[Abilities\Spells\Human\Heal\HealTarget.mdl]], GetUnitX(this.owner.unit), GetUnitY(this.owner.unit)))
+            DestroyEffect(AddSpecialEffect([[Abilities\Spells\Human\Heal\HealTarget.mdl]], GetUnitX(this.owner.unit),
+                GetUnitY(this.owner.unit)))
         end
     end,
     OnRemoved = function(this)
@@ -3394,7 +3638,8 @@ AbilityScripts.SLEEPINESS_SETS_IN = {
     Cast = function()
         local caster = UnitWrapper.Get(GetTriggerUnit())
         local target = UnitWrapper.Get(GetSpellTargetUnit())
-        local mod = caster:ApplyModifierById('SLEEPINESS_SETS_IN', target)
+        -- local mod = caster:ApplyModifierById('SLEEPINESS_SETS_IN', target)
+        local mod = caster:ApplyModifierById('SOUL_ABSORB_TARGET', target)
     end
 }
 
@@ -3406,34 +3651,36 @@ Master.Modifier.SLEEPINESS_SETS_IN = {
     remove_on_death = true,
     max_stack = 8,
     stack = 2,
-    Effects = {{
+    Effects = { {
         model = [[Abilities\Spells\Other\CreepSleep\CreepSleepTarget.mdl]],
         attach_point = 'overhead'
-    }},
+    } },
     BindAbility = AbilityScripts.SLEEPINESS_SETS_IN.AbilityId,
     LevelValues = {
-        Range = {600}
+        Range = { 600 }
     },
     ---@param this Modifier
     Update = function(this)
         if (GetUnitAbilityLevel(this.owner.unit, CommonAbilitiy.SleepBuff) > 0) then
             this.CustomValues.Sleeping = true
             local cond = Condition(function()
-                if (not IsUnitType(GetFilterUnit(), UNIT_TYPE_DEAD)) and 
-                (not IsUnitType(GetFilterUnit(), UNIT_TYPE_STRUCTURE)) and
-                (not IsUnitType(GetFilterUnit(), UNIT_TYPE_MECHANICAL)) then
+                if (not IsUnitType(GetFilterUnit(), UNIT_TYPE_DEAD)) and
+                    (not IsUnitType(GetFilterUnit(), UNIT_TYPE_STRUCTURE)) and
+                    (not IsUnitType(GetFilterUnit(), UNIT_TYPE_MECHANICAL)) then
                     local uw = UnitWrapper.Get(GetFilterUnit())
                     uw:AcquireModifierById('SLEEPINESS_SETS_IN', this.applier)
                 end
                 return false
             end)
-            GroupEnumUnitsInRange(Modifier.TempGroup, GetUnitX(this.owner.unit), GetUnitY(this.owner.unit), this:LV('Range'), cond)
+            GroupEnumUnitsInRange(Modifier.TempGroup, GetUnitX(this.owner.unit), GetUnitY(this.owner.unit),
+                this:LV('Range'), cond)
         else
             if this.CustomValues.Sleeping == true then
                 this:Remove()
             elseif this.stack >= this.max_stack then
                 UnitMgr.DummySpellTarget(this.applier.unit, this.owner.unit, CommonAbilitiy.Sleep, 1, 'sleep')
-                DestroyEffect(AddSpecialEffectTarget([[Abilities\Spells\Undead\Sleep\SleepSpecialArt.mdl]], this.owner.unit, 'overhead'))
+                DestroyEffect(AddSpecialEffectTarget([[Abilities\Spells\Undead\Sleep\SleepSpecialArt.mdl]],
+                    this.owner.unit, 'overhead'))
             end
             this:AddStack(-1)
         end
@@ -3460,21 +3707,25 @@ AbilityScripts.SPACE_CUT_CIRCLE = {
         local x = GetSpellTargetX()
         local y = GetSpellTargetY()
         local direction = math.atan(y - y0, x - x0)
-        local front = MapObject:new(x0 + 100 * Cos(direction), y0 + 100 * Sin(direction), 0, direction, [[Doodads\Dungeon\Props\Forcewall\Forcewall]], AbilityScripts.SPACE_CUT_CIRCLE.Duration)
-        local back = MapObject:new(x0 - 100 * Cos(direction), y0 - 100 * Sin(direction), 0, direction + math.pi, [[Doodads\Dungeon\Props\Forcewall\Forcewall]], AbilityScripts.SPACE_CUT_CIRCLE.Duration)
+        local front = MapObject:new(x0 + 100 * Cos(direction), y0 + 100 * Sin(direction), 0, direction,
+            [[Doodads\Dungeon\Props\Forcewall\Forcewall]], AbilityScripts.SPACE_CUT_CIRCLE.Duration)
+        local back = MapObject:new(x0 - 100 * Cos(direction), y0 - 100 * Sin(direction), 0, direction + math.pi,
+            [[Doodads\Dungeon\Props\Forcewall\Forcewall]], AbilityScripts.SPACE_CUT_CIRCLE.Duration)
         local update = function(this)
-            for _,prjt in pairs(ProjectilMgr.Instances) do
+            for _, prjt in pairs(ProjectilMgr.Instances) do
                 local theta = math.atan(-this.position.y + prjt.position.y, -this.position.x + prjt.position.x)
                 local dis = this.position:DistanceTo(prjt.position)
-                local dy = Sin(math.angleDiff(math.pi/2, (this.yaw - theta))) * dis
-                local dx = Cos(math.angleDiff(math.pi/2, (this.yaw - theta))) * dis
-                if (math.abs(dx) <= 300 and math.abs(dy) <= 10 and math.abs(math.angleDiff(this.yaw + math.pi, prjt.yaw))<= math.pi/2) then
+                local dy = Sin(math.angleDiff(math.pi / 2, (this.yaw - theta))) * dis
+                local dx = Cos(math.angleDiff(math.pi / 2, (this.yaw - theta))) * dis
+                if (math.abs(dx) <= 300 and math.abs(dy) <= 10 and math.abs(math.angleDiff(this.yaw + math.pi, prjt.yaw)) <= math.pi / 2) then
                     local eff
-                    eff = AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkCaster.mdl]], prjt.position.x, prjt.position.y)
+                    eff = AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkCaster.mdl]], prjt.position.x,
+                        prjt.position.y)
                     DestroyEffect(eff)
-                    prjt:MoveTo(prjt.position.x - 200 * Cos(this.yaw), 
-                    prjt.position.y - 200 * Sin(this.yaw))
-                    eff = AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkTarget.mdl]], prjt.position.x, prjt.position.y)
+                    prjt:MoveTo(prjt.position.x - 200 * Cos(this.yaw),
+                        prjt.position.y - 200 * Sin(this.yaw))
+                    eff = AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkTarget.mdl]], prjt.position.x,
+                        prjt.position.y)
                     BlzSetSpecialEffectZ(eff, prjt.position.z)
                     DestroyEffect(eff)
                 end
@@ -3489,25 +3740,27 @@ AbilityScripts.SPACE_CUT_CIRCLE = {
         local y0 = GetUnitY(caster.unit)
         local x = GetSpellTargetX()
         local y = GetSpellTargetY()
-        local mo = MapObject:ctor(x,y,10,0,[[Abilities\Spells\Orc\Voodoo\VoodooAura.mdl]],30)
+        local mo = MapObject:ctor(x, y, 10, 0, [[Abilities\Spells\Orc\Voodoo\VoodooAura.mdl]], 30)
         mo:ScaleModel(1.2)
         mo:AddUpdateHandler(function(this)
-            for _,prjt in pairs(ProjectilMgr.Instances) do
+            for _, prjt in pairs(ProjectilMgr.Instances) do
                 local d = this.position:DistanceTo(prjt.position)
-                if (d<=240 and d >= 200) then
-                    local p2c = math.atan(this.position.y - prjt.position.y, this.position.x-prjt.position.x)
+                if (d <= 240 and d >= 200) then
+                    local p2c = math.atan(this.position.y - prjt.position.y, this.position.x - prjt.position.x)
                     local a = math.angleDiff(p2c, prjt.yaw)
-                    
-                    if (a<math.pi/2 and a > -math.pi/2) then
+
+                    if (a < math.pi / 2 and a > -math.pi / 2) then
                         local eff
-                        eff = AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkCaster.mdl]], prjt.position.x, prjt.position.y)
+                        eff = AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkCaster.mdl]], prjt.position.x,
+                            prjt.position.y)
                         BlzSetSpecialEffectZ(eff, prjt.position.z)
                         DestroyEffect(eff)
                         prjt:MoveTo(
                             prjt.position.x + (this.position.x - prjt.position.x) * 2,
                             prjt.position.y + (this.position.y - prjt.position.y) * 2
                         )
-                        eff = AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkTarget.mdl]], prjt.position.x, prjt.position.y)
+                        eff = AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkTarget.mdl]], prjt.position.x,
+                            prjt.position.y)
                         BlzSetSpecialEffectZ(eff, prjt.position.z)
                         DestroyEffect(eff)
                     end
@@ -3527,8 +3780,8 @@ Master.Modifier.STORM_FORCE_FIELD = {
     Effects = {},
     BindAbility = FourCC('A00B'),
     LevelValues = {
-        PushVelocity = {1000,1200,1400,1600},
-        PushDuration = {0.3}
+        PushVelocity = { 1000, 1200, 1400, 1600 },
+        PushDuration = { 0.3 }
     },
     ---@param this Modifier
     ---@param damage Damage
@@ -3538,8 +3791,8 @@ Master.Modifier.STORM_FORCE_FIELD = {
             local dy = GetUnitY(damage.source.unit) - GetUnitY(this.owner.unit)
             local r = math.atan(dy, dx)
             local v = this:LV('PushVelocity')
-            local a = - v / this:LV('PushDuration')
-            damage.source:AddDisplace(Displace:ctor{
+            local a = -v / this:LV('PushDuration')
+            damage.source:AddDisplace(Displace:ctor {
                 velocity = Vector3:new(nil, v * Cos(r), v * Sin(r), 0),
                 accelerate = Vector3:new(nil, a * Cos(r), a * Sin(r), 0),
                 max_distance = 0,
@@ -3549,9 +3802,482 @@ Master.Modifier.STORM_FORCE_FIELD = {
                 efx = nil,
                 efx_interval = 1,
             })
-            DestroyEffect(AddSpecialEffectTarget([[Abilities\Spells\NightElf\Taunt\TauntCaster.mdl]], this.owner.unit, 'origin'))
+            DestroyEffect(AddSpecialEffectTarget([[Abilities\Spells\NightElf\Taunt\TauntCaster.mdl]], this.owner.unit,
+                'origin'))
         end
     end
+}
+
+Master.Modifier.PROTECTOR_TARGET = {
+    id = 'PROTECTOR_TARGET',
+    icon = [[ReplaceableTextures\CommandButtons\BTNDefendStop.blp]],
+    title = '被保护',
+    description = '这个单位被保护了，当受到致命伤害时（持续伤害除外），若与保护者距离在$MaxDistance$以内，则会与保护者交换位置，并将该次伤害转移给保护者，生效后此状态移除',
+    duration = 180,
+    interval = 65535,
+    reapply_mode = Modifier.REAPPLY_MODE.REFRESH,
+    remove_on_death = false,
+    Effects = {},
+    BindAbility = FourCC('A00B'),
+    LevelValues = {
+        MaxDistance = { 600 }
+    },
+    ---@param this Modifier
+    ---@param damage Damage
+    OnStartTakeDamage = function(this, damage)
+        if not this.applier:DeadQ()
+            and damage.dmgtype ~= Damage.DAMAGE_TYPE_DOT
+            and GetWidgetLife(this.owner.unit) < damage.amount
+            and this.owner:DistanceToUnit(this.applier) <= this:LV('MaxDistance') then
+            local x = this.owner:GetX()
+            local y = this.owner:GetY()
+            local px = this.applier:GetX()
+            local py = this.applier:GetY()
+            SetUnitX(this.owner.unit, px)
+            SetUnitY(this.owner.unit, py)
+            SetUnitX(this.applier.unit, x)
+            SetUnitY(this.applier.unit, y)
+            DestroyEffect(AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkCaster.mdl]], x, y))
+            DestroyEffect(AddSpecialEffect([[Abilities\Spells\NightElf\Blink\BlinkCaster.mdl]], px, py))
+            damage.target = this.applier
+            this:Remove()
+        end
+    end
+}
+
+AbilityScripts.SOUL_ABSORB = {
+    AbilityId = FourCC('A00N'),
+    SOUL_MOVESEPPD = 600,
+    Cast = function()
+        AbilityScripts.SOUL_ABSORB.Effect(
+            UnitWrapper.Get(GetTriggerUnit()),
+            UnitWrapper.Get(GetSpellTargetUnit())
+        )
+    end,
+    ---@param caster UnitWrapper
+    ---@param target UnitWrapper
+    Effect = function(caster, target)
+        caster:ApplyModifierById('SOUL_ABSORB_TARGET', target, AbilityScripts.SOUL_ABSORB.AbilityId)
+    end
+}
+Master.Modifier.SOUL_ABSORB_TARGET = {
+    id = 'SOUL_ABSORB_TARGET',
+    title = '灵魂离体',
+    description = '这个单位灵魂离体了',
+    duration = 30,
+    reapply_mode = Modifier.REAPPLY_MODE.NO,
+    remove_on_death = true,
+    Effects = {},
+    LevelValues = {
+        MaxSoulSpeed = { 400 },
+        MaxDistance = { 1500 }
+    },
+    OnAcquired = function(this)
+        local soul_model = GameHelper.UnitModelPathGetter:Get(this.owner.unit)
+        this.CustomValues.AbsorbedSoul = AddSpecialEffect(soul_model, this.owner:GetX(), this.owner:GetY())
+        BlzSetSpecialEffectAlpha(this.CustomValues.AbsorbedSoul, 100)
+        this.CustomValues.AbsorbedSoulPos = Vector3:ctor {
+            x = this.owner:GetX(),
+            y = this.owner:GetY()
+        }
+    end,
+    Update = function(this)
+        local soul_pos       = this.CustomValues.AbsorbedSoulPos
+        local d_soul_to_self = soul_pos:Distance2D(this.owner:GetX(), this.owner:GetY())
+        local max_speed      = this:LV('MaxSoulSpeed')
+        local max_distance   = this:LV('MaxDistance')
+        local speed          = max_speed * (max_distance - d_soul_to_self) / max_distance
+        if speed < 0 then speed = 0 end
+        local d_soul_to_caster = soul_pos:Distance2D(this.applier:GetX(), this.applier:GetY())
+        if d_soul_to_caster < 50 then
+            BlzSetSpecialEffectZ(this.CustomValues.AbsorbedSoul, -10000)
+            DestroyEffect(this.CustomValues.AbsorbedSoul)
+            this:Remove()
+            return
+        end
+        local a = math.atan(this.applier:GetY() - soul_pos.y, this.applier:GetX() - soul_pos.x)
+        soul_pos.x = soul_pos.x + this.interval * speed * Cos(a)
+        soul_pos.y = soul_pos.y + this.interval * speed * Sin(a)
+        BlzSetSpecialEffectX(this.CustomValues.AbsorbedSoul, soul_pos.x)
+        BlzSetSpecialEffectY(this.CustomValues.AbsorbedSoul, soul_pos.y)
+    end,
+}
+
+
+AbilityScripts.HELICOPTER_FALL = {
+    AbilityId = FourCC('A00P'),
+    TURNING_SPEED = 2 * math.pi,
+    FALLING_SPEED = 600,
+    Cast = function()
+        AbilityScripts.HELICOPTER_FALL.Effect(
+            UnitWrapper.Get(GetTriggerUnit()),
+            GetSpellTargetX(),
+            GetSpellTargetY()
+        )
+    end,
+    Effect = function(caster, x, y)
+        local model = AddSpecialEffect([[units\human\Gyrocopter\Gyrocopter]], x, y)
+        BlzSetSpecialEffectScale(model, 2)
+        local terrain_z = Entity.GetLocationZ(x, y)
+        local z = terrain_z + 1000
+        local yaw = 0
+        local id = GUID.generate()
+        
+        CoreTicker.AttachAction(function(interval)
+            BlzSetSpecialEffectYaw(model, yaw)
+            BlzSetSpecialEffectZ(model, z)
+            yaw = yaw + AbilityScripts.HELICOPTER_FALL.TURNING_SPEED * interval
+            z = z - AbilityScripts.HELICOPTER_FALL.FALLING_SPEED * interval
+            if z < terrain_z then
+                CoreTicker.DetachAction(id)
+                BlzSetSpecialEffectZ(model, -10000)
+                DestroyEffect(model)
+                local explosion = AddSpecialEffect([[Effects/GroundExplosion.mdx]],x,y)
+                BlzSetSpecialEffectScale(explosion, 3)
+                DestroyEffect(explosion)
+            end
+        end,nil,id)
+    end
+}]=]
+
+P['scripts/NagaQueen.lua'] = [=[Master.Modifier.DAGONS_BLESS = {
+    id = 'DAGONS_BLESS',
+    icon = [[ReplaceableTextures\CommandButtons\BTNDagonAdvocate_DagonsBless.dds]],
+    title = '达贡的加护',
+    description =
+    '在浅水中移动速度上升50，每秒回复$HPRegenPercentPerSecondLow$%的生命|n在深水中移动速度上升150，每秒回复$HPRegenPercentPerSecondHigh$%的生命',
+    duration = -1,
+    interval = 0.1,
+    remove_on_death = false,
+    Effects = {},
+    LevelValues = {
+        HPRegenPercentPerSecondLow = { 0.25 },
+        HPRegenPercentPerSecondHigh = { 1 }
+
+    },
+    ---@param this Modifier
+    Update = function(this)
+        this.CommonStatsBonus.movespeed = 0
+        if this.owner:OnShallowWaterQ() then
+            this.CommonStatsBonus.movespeed = 50
+            this.owner:AddHPRate(this:LV('HPRegenPercentPerSecondLow') * this.interval)
+        elseif this.owner:OnDeepWaterQ() then
+            this.CommonStatsBonus.movespeed = 150
+            this.owner:AddHPRate(this:LV('HPRegenPercentPerSecondHigh') * this.interval)
+        else
+            if this.CustomValues.OnWaterEffect ~= nil then
+                DestroyEffect(this.CustomValues.OnWaterEffect)
+                this.CustomValues.OnWaterEffect = nil
+            end
+        end
+    end
+}
+
+Master.Modifier.OCEANUS_STRIKE = {
+    id = 'OCEANUS_STRIKE',
+    icon = [[ReplaceableTextures\CommandButtons\BTNScepterOfMastery.blp]],
+    title = '海皇杖',
+    description = '当前充能@Charge@点（最多500点，在深水时每秒获得50点充能，浅水时25点，其他情况下15点）|n造成近战攻击伤害时，若充能在100点以上，则消耗100点充能，额外造成100点寒冷伤害和1秒眩晕，同时对周围敌人造成50点伤害',
+    duration = -1,
+    interval = 1,
+    remove_on_death = false,
+    Effects = {},
+    OnAcquired = function(this)
+        this.CustomValues.Charge = 0
+        this.CustomValues.WeaponEffect = nil
+    end,
+    ---@param this Modifier
+    Update = function(this)
+        if this.owner:OnShallowWaterQ() then
+            this.CustomValues.Charge = this.CustomValues.Charge + 25
+        elseif this.owner:OnDeepWaterQ() then
+            this.CustomValues.Charge = this.CustomValues.Charge + 50
+        else
+            this.CustomValues.Charge = this.CustomValues.Charge + 15
+        end
+        if this.CustomValues.Charge > 500 then
+            this.CustomValues.Charge = 500
+        end
+        if this.CustomValues.Charge >= 100 and this.CustomValues.WeaponEffect == nil then
+            this.CustomValues.WeaponEffect = AddSpecialEffectTarget([[Effects\FrostBoltV1.mdx]], this.owner.unit,
+                'weapon')
+        end
+    end,
+    ---@param this Modifier
+    OnDealDamage = function(this, damage)
+        if this.CustomValues.Charge >= 100 and damage.atktype == Damage.ATTACK_TYPE_MELEE then
+            DestroyEffect(AddSpecialEffect([[Effects/IceWarStomp.mdx]], damage.target:GetX(), damage.target:GetY()))
+            this.CustomValues.Charge = this.CustomValues.Charge - 100
+            local mdf = this.owner:ApplyModifierById('STUN', damage.target, this.ability)
+            mdf:ReinitDuration(1)
+            Damage:ctor {
+                amount = 100,
+                source = this.owner,
+                target = damage.target,
+                atktype = Damage.ATTACK_TYPE_SPELL,
+                dmgtype = Damage.DAMAGE_TYPE_NORMAL,
+                eletype = Damage.ELEMENT_TYPE_KRYO
+            }:Resolve()
+            local cond = Condition(function()
+                local u = GetFilterUnit()
+                if not IsUnitType(u, UNIT_TYPE_DEAD)
+                    and u ~= damage.target.unit
+                    and IsUnitEnemy(u, GetOwningPlayer(this.owner.unit)) then
+                    Damage:ctor {
+                        amount = 50,
+                        source = this.owner,
+                        target = UnitWrapper.Get(u),
+                        atktype = Damage.ATTACK_TYPE_SPELL,
+                        dmgtype = Damage.DAMAGE_TYPE_NORMAL,
+                        eletype = Damage.ELEMENT_TYPE_KRYO
+                    }:Resolve()
+                end
+                return false
+            end)
+            GroupEnumUnitsInRange(Entity.tempGroup, damage.target:GetX(), damage.target:GetY(), 250, cond)
+            DestroyBoolExpr(cond)
+            if this.CustomValues.Charge < 100 then
+                DestroyEffect(this.CustomValues.WeaponEffect)
+                this.CustomValues.WeaponEffect = nil
+            end
+        end
+    end
+}
+
+AbilityScripts.TIDAL_BURST = {
+    RANGE = 300,
+    RANGE_BOOSTED = 500,
+    DAMAGE = 100,
+    DAMAGE_BOOSTED = 200,
+    BOOST_COST = 250,
+    AbilityId = FourCC('A010'),
+    Cast = function()
+        local caster = UnitWrapper.Get(GetTriggerUnit())
+        local tx = GetSpellTargetX()
+        local ty = GetSpellTargetY()
+        local efx = AddSpecialEffect([[Effects\TidalBurst.mdx]], tx, ty)
+        DestroyEffect(efx)
+        local cond = Condition(function()
+            local u = GetFilterUnit()
+            if not IsUnitType(u, UNIT_TYPE_DEAD)
+                and IsUnitEnemy(u, GetOwningPlayer(caster.unit)) then
+                local uw = UnitWrapper.Get(u)
+                local on_water = uw:OnWaterQ()
+                local v = 3000
+                if on_water then v = 4000 end
+                uw:AddDisplace(Displace:ctor {
+                    velocity = Vector3:new(nil, 0, 0, v),
+                    accelerate = Vector3:new(nil, 0, 0, -3900),
+                    max_distance = 0,
+                    max_duration = 0,
+                    interruptible = true,
+                    interrupt_action = true,
+                    finish_when_landed = true
+                })
+                local d_amt = 100
+                if on_water then d_amt = d_amt * 1.5 end
+                Damage:ctor {
+                    amount = d_amt,
+                    source = caster,
+                    target = uw,
+                    atktype = Damage.ATTACK_TYPE_SPELL,
+                    dmgtype = Damage.DAMAGE_TYPE_NORMAL,
+                    eletype = Damage.ELEMENT_TYPE_SMASH
+                }:Resolve()
+            end
+
+            return false
+        end)
+        GroupEnumUnitsInRange(Entity.tempGroup, tx, ty, 300, cond)
+        DestroyBoolExpr(cond)
+    end
+}
+
+AbilityScripts.SUMMON_VORTEX = {
+    AbilityId = FourCC('A011'),
+    DURATION = 30,
+    DURATION_BOOSTED = 60,
+    ATTRACT_SPEED = 150,
+    ATTRACT_SPEED_BOOSTED = 250,
+    RANGE = 600,
+    RANGE_BOOSTED = 900,
+    BOOST_COST = 500,
+    Cast = function()
+        local caster = UnitWrapper.Get(GetTriggerUnit())
+        local tx = GetSpellTargetX()
+        local ty = GetSpellTargetY()
+        AbilityScripts.SUMMON_VORTEX.Effect(caster, tx, ty)
+    end,
+    ---@param caster UnitWrapper
+    Effect = function(caster, x, y)
+        local duration, speed, range, mdfid
+        local mdf = caster:GetAffectedModifier('OCEANUS_STRIKE')
+        local boosted = false
+        if (mdf and mdf.CustomValues.Charge >= AbilityScripts.SUMMON_VORTEX.BOOST_COST) then
+            mdf.CustomValues.Charge = mdf.CustomValues.Charge - AbilityScripts.SUMMON_VORTEX.BOOST_COST
+            DestroyEffect(mdf.CustomValues.WeaponEffect)
+            mdf.CustomValues.WeaponEffect = nil
+            duration = AbilityScripts.SUMMON_VORTEX.DURATION_BOOSTED
+            speed = AbilityScripts.SUMMON_VORTEX.ATTRACT_SPEED_BOOSTED
+            range = AbilityScripts.SUMMON_VORTEX.RANGE_BOOSTED
+            mdfid = 'ON_DEEP_WATER_FAKE'
+            boosted = true
+        else
+            duration = AbilityScripts.SUMMON_VORTEX.DURATION
+            speed = AbilityScripts.SUMMON_VORTEX.ATTRACT_SPEED
+            range = AbilityScripts.SUMMON_VORTEX.RANGE
+            mdfid = 'ON_SHALLOW_WATER_FAKE'
+        end
+        local mo = MapObject:ctor {
+            x = x, y = y, z = 0,
+            duration = duration,
+            model_path = [[Effects\Whirlpool.mdx]],
+            creator = caster,
+        }
+        if boosted then
+            BlzSetSpecialEffectTimeScale(mo.model, 3)
+            BlzSetSpecialEffectScale(mo.model, 1.5)
+        end
+        local update_handler = function(this, interval)
+            local cond = Condition(function()
+                local u = GetFilterUnit()
+                if not IsUnitType(u, UNIT_TYPE_DEAD) then
+                    local uw = UnitWrapper.Get(u)
+                    uw:AcquireModifierById(mdfid, this.creator.unit,
+                        AbilityScripts.SUMMON_VORTEX.AbilityId)
+                    if IsUnitEnemy(u, GetOwningPlayer(this.creator.unit)) then
+                        local ux = uw:GetX()
+                        local uy = uw:GetY()
+                        local a = math.atan(this.position.y - uy, this.position.x - ux)
+                        SetUnitX(u, ux + speed * Cos(a) * interval)
+                        SetUnitY(u, uy + speed * Sin(a) * interval)
+                    end
+                end
+                return false
+            end)
+            GroupEnumUnitsInRange(Entity.tempGroup, this.x, this.y, range, cond)
+            DestroyBoolExpr(cond)
+        end
+        mo:AddUpdateHandler(update_handler)
+    end
+}
+
+AbilityScripts.OCEANUS_RAGE = {
+    AbilityId = FourCC('A012'),
+    Cast = function()
+        local caster = UnitWrapper.Get(GetTriggerUnit())
+        AbilityScripts.OCEANUS_RAGE.Effect(caster)
+    end,
+    ---@param caster UnitWrapper
+    Effect = function(caster)
+        local mdf = caster:GetAffectedModifier('OCEANUS_STRIKE')
+        --calc prjt start position
+        local angle = (GetUnitFacing(caster.unit) + 20) * math.degree
+        local dis = 120
+        local start_pos = Vector3:ctor {
+            x = caster:GetX() + dis * Cos(angle),
+            y = caster:GetY() + dis * Sin(angle),
+            z = Entity.GetUnitZ(caster.unit) + 300
+        }
+        local start_crystal = AddSpecialEffect([[Effects\FrostcraftCrystalSD.mdx]], start_pos.x, start_pos.y)
+        BlzSetSpecialEffectZ(start_crystal, start_pos.z)
+
+        local id = GUID.generate()
+        local facing = GetUnitFacing(caster.unit)
+        CoreTicker.AttachAction(function()
+            for i = 1, 3, 1 do
+                local t_a = (math.random(-30,30) + facing) * math.degree
+                local t_d = 10
+                local t_pos = Vector3:ctor {
+                    x = start_pos.x + t_d * Cos(t_a),
+                    y = start_pos.y + t_d * Sin(t_a),
+                    z = start_pos.z + 60,
+                }
+                Projectil:ctor {
+                    emitter = caster,
+                    x = start_pos.x,
+                    y = start_pos.y,
+                    z = start_pos.z + 60,
+                    target_position = t_pos,
+                    settings = Master.Projectil.OCEANUS_RAGE_PRJT,
+                    hit_damage = Damage:ctor {
+                        amount = 50,
+                        source = caster,
+                        atktype = Damage.ATTACK_TYPE_SPELL,
+                        dmgtype = Damage.DAMAGE_TYPE_NORMAL,
+                        eletype = Damage.ELEMENT_TYPE_PIERCE
+                    }
+                }
+            end
+            if mdf and mdf.CustomValues.Charge > 10 then
+                mdf.CustomValues.Charge = mdf.CustomValues.Charge - 10
+                DestroyEffect(mdf.CustomValues.WeaponEffect)
+                mdf.CustomValues.WeaponEffect = nil
+            else
+                IssueImmediateOrder(caster.unit, 'stop')
+            end
+        end, 0.1, id)
+        local trig = CreateTrigger()
+        TriggerRegisterUnitEvent(trig, caster.unit, EVENT_UNIT_SPELL_ENDCAST)
+        local tcond
+        tcond = Condition(function()
+            CoreTicker.DetachAction(id)
+            DestroyEffect(start_crystal)
+            DestroyTrigger(trig)
+            DestroyBoolExpr(tcond)
+            return false
+        end)
+        TriggerAddCondition(trig, tcond)
+    end
+}
+
+Master.Projectil.OCEANUS_RAGE_PRJT = {
+    model = [[Effects\FrostBoltV1.mdx]],
+    model_scale = 1,
+    speed = 500,
+    no_gravity = true,
+    hit_range = 50,
+    hit_terrain = true,
+    hit_other = true,
+    hit_ally = false,
+    hit_piercing = false,
+    hit_cooldown = 1,
+    track_type = Projectil.TRACK_TYPE_NONE,
+    tracking_angle = 120 * math.degree,
+    turning_speed = 160 * math.degree,
+    turning_speed_pitch = 15 * math.degree,
+    max_flying_distance = 3000,
+    offsetX = 0,
+    offsetY = 0,
+    offsetZ = 0,
+    ---@param this Projectil
+    OnCreated = function(this) 
+        this.CustomValues.TargetFound = false
+    end,
+    ---@param this Projectil
+    Update = function(this)
+        if (this.CustomValues.TargetFound == false and this.flying_time >= 1) then
+            
+            local cond = Condition(function()
+                local u = GetFilterUnit()
+                if not IsUnitType(u, UNIT_TYPE_DEAD)
+                and IsUnitEnemy(u, GetOwningPlayer(this.emitter.unit)) then
+                    local uw = UnitWrapper.Get(u)
+                    local ta = math.atan(uw:GetY()-this.position.y, uw:GetX()-this.position.x)
+                    local delta = math.angleDiff(this.yaw, ta)
+                    if (delta < 120*math.degree and delta > -120*math.degree) then
+                        this.target_unit = u
+                        this.track_type = Projectil.TRACK_TYPE_UNIT
+                        this.speed = 2000
+                        this.CustomValues.TargetFound = true
+                    end
+                end
+                return false
+            end)
+            GroupEnumUnitsInRange(Entity.tempGroup, this.position.x, this.position.y, 700, cond)
+            DestroyBoolExpr(cond)
+        end
+    end,
 }]=]
 
 P['scripts/Nephtis.lua'] = [=[require('gameSystem')
@@ -3953,6 +4679,8 @@ AbilityIntrinsecModDict = {
     [FourCC('A00O')] = {'NEPHTIS_SOUL_CONVERT'},
     [FourCC('A00S')] = {'RED_DRAGON_ENVIRONMENT'},
     [FourCC('A00U')] = {'FREEZING_REALM'},
+    [FourCC('A00Y')] = {'LIFE_BY_ATTACK_TIME'},
+    [FourCC('A00Z')] = {'DAGONS_BLESS', 'OCEANUS_STRIKE'},
     [FourCC('AUav')] = {'BLOOD_THIRST_AURA'},
 }
 
@@ -3963,8 +4691,9 @@ AbilityIntrinsecModDict = {
 require('scripts.Misc')
 require('scripts.Nephtis')
 require('scripts.RedDragon')
-require('scripts.101FireWork')
+--require('scripts.101FireWork')
 require('scripts.IceMaiden')
+require('scripts.NagaQueen')
 
 do -- Ability Cast Trigger
     local trigger = CreateTrigger()
@@ -4442,27 +5171,10 @@ function Vector3:RotateAboutXY(rad, x, y)
 end]=]
 
 P['origwar3map.lua'] = [[gg_trg_Untitled_Trigger_001 = nil
+gg_trg_Untitled_Trigger_001_______u = nil
+gg_trg_Untitled_Trigger_001______________u = nil
+gg_trg_Untitled_Trigger_001_____________________u = nil
 function InitGlobals()
-end
-
-function Trig_Untitled_Trigger_001_Conditions()
-if (not (UnitCanSleepPerm(GetTriggerUnit()) == true)) then
-return false
-end
-return true
-end
-
-function Trig_Untitled_Trigger_001_Actions()
-end
-
-function InitTrig_Untitled_Trigger_001()
-gg_trg_Untitled_Trigger_001 = CreateTrigger()
-TriggerAddCondition(gg_trg_Untitled_Trigger_001, Condition(Trig_Untitled_Trigger_001_Conditions))
-TriggerAddAction(gg_trg_Untitled_Trigger_001, Trig_Untitled_Trigger_001_Actions)
-end
-
-function InitCustomTriggers()
-InitTrig_Untitled_Trigger_001()
 end
 
 function InitCustomPlayerSlots()
@@ -4478,7 +5190,7 @@ SetPlayerTeam(Player(0), 0)
 end
 
 function main()
-SetCameraBounds(-3328.0 + GetCameraMargin(CAMERA_MARGIN_LEFT), -3584.0 + GetCameraMargin(CAMERA_MARGIN_BOTTOM), 3328.0 - GetCameraMargin(CAMERA_MARGIN_RIGHT), 3072.0 - GetCameraMargin(CAMERA_MARGIN_TOP), -3328.0 + GetCameraMargin(CAMERA_MARGIN_LEFT), 3072.0 - GetCameraMargin(CAMERA_MARGIN_TOP), 3328.0 - GetCameraMargin(CAMERA_MARGIN_RIGHT), -3584.0 + GetCameraMargin(CAMERA_MARGIN_BOTTOM))
+SetCameraBounds(-11520.0 + GetCameraMargin(CAMERA_MARGIN_LEFT), -11776.0 + GetCameraMargin(CAMERA_MARGIN_BOTTOM), 3328.0 - GetCameraMargin(CAMERA_MARGIN_RIGHT), 3072.0 - GetCameraMargin(CAMERA_MARGIN_TOP), -11520.0 + GetCameraMargin(CAMERA_MARGIN_LEFT), 3072.0 - GetCameraMargin(CAMERA_MARGIN_TOP), 3328.0 - GetCameraMargin(CAMERA_MARGIN_RIGHT), -11776.0 + GetCameraMargin(CAMERA_MARGIN_BOTTOM))
 SetDayNightModels("Environment\\DNC\\DNCLordaeron\\DNCLordaeronTerrain\\DNCLordaeronTerrain.mdl", "Environment\\DNC\\DNCLordaeron\\DNCLordaeronUnit\\DNCLordaeronUnit.mdl")
 NewSoundEnvironment("Default")
 SetAmbientDaySound("LordaeronSummerDay")
@@ -4486,7 +5198,6 @@ SetAmbientNightSound("LordaeronSummerNight")
 SetMapMusic("Music", true, 0)
 InitBlizzard()
 InitGlobals()
-InitCustomTriggers()
 end
 
 function config()
@@ -4495,7 +5206,7 @@ SetMapDescription("")
 SetPlayers(1)
 SetTeams(1)
 SetGamePlacement(MAP_PLACEMENT_USE_MAP_SETTINGS)
-DefineStartLocation(0, 896.0, -640.0)
+DefineStartLocation(0, -192.0, -192.0)
 InitCustomPlayerSlots()
 SetPlayerSlotAvailable(Player(0), MAP_CONTROL_USER)
 InitGenericPlayerSlots()
