@@ -101,7 +101,7 @@ Master.Projectil.BOUNCING_INFERNAL = {
     offsetX = 0,
     offsetY = 0,
     offsetZ = 50,
-    OnCreate = function(this)
+    OnCreated = function(this)
         this.CustomValues.BounceCount = 0
     end,
     OnHit = nil,
@@ -235,8 +235,8 @@ AbilityScripts.SLEEPINESS_SETS_IN = {
     Cast = function()
         local caster = UnitWrapper.Get(GetTriggerUnit())
         local target = UnitWrapper.Get(GetSpellTargetUnit())
-        -- local mod = caster:ApplyModifierById('SLEEPINESS_SETS_IN', target)
-        local mod = caster:ApplyModifierById('SOUL_ABSORB_TARGET', target)
+        local mod = caster:ApplyModifierById('SLEEPINESS_SETS_IN', target)
+        -- local mod = caster:ApplyModifierById('SOUL_ABSORB_TARGET', target)
     end
 }
 
@@ -500,9 +500,10 @@ Master.Modifier.SOUL_ABSORB_TARGET = {
     end,
 }
 
-
+--[[
+]]--
 AbilityScripts.HELICOPTER_FALL = {
-    AbilityId = FourCC('A00P'),
+    --AbilityId = FourCC('A00P'),
     TURNING_SPEED = 2 * math.pi,
     FALLING_SPEED = 600,
     Cast = function()
@@ -534,5 +535,224 @@ AbilityScripts.HELICOPTER_FALL = {
                 DestroyEffect(explosion)
             end
         end,nil,id)
+    end
+}
+
+AbilityScripts.SINE_BULLET = {
+    --AbilityId = FourCC('A00P'),
+    LINE_SPEED = 500,
+    Cast = function()
+        AbilityScripts.SINE_BULLET.Effect(
+            UnitWrapper.Get(GetTriggerUnit()),
+            GetSpellTargetX(),
+            GetSpellTargetY()
+        )
+    end,
+    Effect = function(caster, x, y)
+        local origin_x = caster:GetX()
+        local origin_y = caster:GetY()
+        local model = AddSpecialEffect([[Effects\FrostBoltV1.mdx]], origin_x, origin_y)
+        local orientation = math.atan(y - origin_y, x - origin_x)
+        local distance = 0
+        
+        local id = GUID.generate() --生成id
+        -- 将循环动作附加到主循环
+        CoreTicker.AttachAction(function(interval)
+            distance = distance + AbilityScripts.SINE_BULLET.LINE_SPEED * interval
+            local y0 = Sin(distance*2*math.pi/300) * 200
+            local x0 = distance
+            local x1 = x0 * Cos(orientation) - y0 * Sin(orientation) + origin_x
+            local y1 = x0 * Sin(orientation) + y0 * Cos(orientation) + origin_y
+            BlzSetSpecialEffectX(model, x1)
+            BlzSetSpecialEffectY(model, y1)
+            --调整模型面向角度，始终朝向正弦切线方向
+            BlzSetSpecialEffectYaw(model, math.atan(Cos(distance*2*math.pi/300)) + orientation)
+            -- 满足条件时，结束循环
+            if distance > 1500 then
+                CoreTicker.DetachAction(id)
+                DestroyEffect(model)
+            end
+        end,nil,id)
+    end
+}
+
+
+-- 闪电风暴攻击
+Master.Modifier.LIGHTNING_STORM = {
+    id = 'LIGHTNING_STORM',
+    icon = [[ReplaceableTextures\CommandButtons\BTNDefendStop.blp]],
+    title = '闪电风暴攻击',
+    description = '',
+    duration = -1,
+    interval = 65535,
+    reapply_mode = Modifier.REAPPLY_MODE.NO,
+    remove_on_death = false,
+    Effects = {},
+    BindAbility = FourCC('A016'),
+    ---@param this Modifier
+    ---@param damage Damage
+    OnDealDamage = function(this, damage)
+        if   damage.atktype == Damage.ATTACK_TYPE_PROJECTIL then
+            local x = this.owner:GetX()
+            local y = this.owner:GetY()
+            local tx = damage.target:GetX()
+            local ty = damage.target:GetY()
+            lightning = AddLightningEx('CLPB', false,x,y, Entity.GetLocationZ(x,y)+200,tx, ty,Entity.GetLocationZ(tx, ty))
+            local id = GUID.generate()
+            local count = 0
+            CoreTicker.AttachAction(function()
+                local nx = damage.target:GetX()
+                local ny = damage.target:GetY()
+                local distance = math.sqrt((nx - tx) * (nx - tx) + (ny - ty) * (ny - ty))
+                if distance > 25 then
+                    distance = 25
+                end
+                local r = math.atan(ny - ty, nx - tx)
+                tx = tx + distance*Cos(r)
+                ty = ty + distance*Sin(r)
+                MoveLightningEx(lightning, false, x, y,  Entity.GetLocationZ(x,y)+200, tx, ty, Entity.GetLocationZ(tx, ty))
+                DestroyEffect(AddSpecialEffect([[Abilities\Weapons\Bolt\BoltImpact.mdl]], tx, ty))              
+                DestroyEffect(AddSpecialEffect([[Abilities\Spells\Human\Thunderclap\ThunderClapCaster.mdl]], tx, ty))              
+                local cond = Condition(function()
+                    local u = GetFilterUnit()
+                    if not IsUnitType(u, UNIT_TYPE_DEAD)
+                        and IsUnitEnemy(u, GetOwningPlayer(this.owner.unit)) then
+                        local uw = UnitWrapper.Get(u)
+                        Damage:ctor {
+                            amount = 25,
+                            source = this.owner,
+                            target = uw,
+                            atktype = Damage.ATTACK_TYPE_SPELL,
+                            dmgtype = Damage.DAMAGE_TYPE_NORMAL,
+                            eletype = Damage.ELEMENT_TYPE_ELECTRIC
+                        }:Resolve()
+                    end
+                    return false
+                end)
+                GroupEnumUnitsInRange(Entity.TempGroup, 
+                    tx, 
+                    ty, 
+                    200, cond
+                )
+                DestroyBoolExpr(cond)
+                count = count + 1
+                if count >= 8 then
+                    DestroyLightning(lightning)
+                    CoreTicker.DetachAction(id)
+                end
+                
+            end, 0.1, id)
+        end
+    end
+}
+
+Master.DefaultAttackProjectil[FourCC('h003')] = {
+    model = [[Abilities\\Weapons\\LichMissile\\LichMissile.mdl]],
+    speed = 6000,
+    no_gravity = true,
+    hit_range = 50,
+    hit_terrain = false,
+    hit_other = false,
+    hit_ally = true,
+    hit_piercing = false,
+    track_type = Projectil.TRACK_TYPE_UNIT,
+    trackZ = true,
+    tracking_angle = 3600 * math.degree,
+    turning_speed = 3600 * math.degree,
+    turning_speed_pitch = 3600 * math.degree,
+    max_flying_distance = 3000,
+}
+
+-- 导弹
+AbilityScripts.BALLISTIC_MISSILE = {
+    AbilityId = FourCC('A00P'), -- TBD
+    Cast = function()
+        AbilityScripts.BALLISTIC_MISSILE.Effect(
+            UnitWrapper.Get(GetTriggerUnit()),
+            GetSpellTargetX(),
+            GetSpellTargetY()
+        )
+    end,
+    Effect = function(caster, tx, ty)
+        local tloc = Vector3:ctor {
+            x = tx,
+            y = ty,
+            z = 0
+        }
+        tloc.z = Projectil.GetLocationZ(tloc.x, tloc.y)
+        Projectil:ctor {
+            emitter = caster,
+            x = caster:GetX(),
+            y = caster:GetY(),
+            z = Entity.GetUnitZ(caster.unit) + 200,
+            target_position = tloc,
+            settings = Master.Projectil.BALLISTIC_MISSILE
+        }
+    end
+}
+Master.Projectil.BALLISTIC_MISSILE = {
+    model = [[Abilities\Weapons\CannonTowerMissile\CannonTowerMissile.mdl]],
+    model_scale = 2,
+    speed = 300,
+    no_gravity = true,
+    hit_range = 50,
+    hit_terrain = true,
+    hit_other = true,
+    hit_ally = true,
+    hit_piercing = false,
+    track_type = Projectil.TRACK_TYPE_POSITION,
+    tracking_angle = 120 * math.degree,
+    turning_speed = 90 * math.degree,
+    turning_speed_pitch = 0,
+    max_flying_distance = 6000,
+    offsetX = 0,
+    offsetY = 0,
+    offsetZ = 50,
+    ---@param this Projectil
+    OnCreated = function(this)
+        this.pitch = 90 * math.degree
+        this:AdjustVelocity()
+        this.CustomValues.ChangedToStep2 = false
+        this.CustomValues.ChangedToStep3 = false
+    end,
+    ---@param this Projectil
+    CustomTrack = function(this)
+        if(this.flying_time > 0.8) then
+            if(this.position:DistanceTo(this.target_position) < 800) then
+                if this.CustomValues.ChangedToStep3 == false then
+                    this.CustomValues.ChangedToStep3 = true
+                    this.turning_speed_pitch = 120 * math.degree
+                    this.no_gravity = false
+                end
+                this:Track()
+            elseif (this.CustomValues.ChangedToStep3 == false) then
+                if (this.CustomValues.ChangedToStep2 == false) then
+                    this.CustomValues.ChangedToStep2 = true
+                    this.pitch = 0
+                    this.yaw = math.atan(this.target_position.y - this.position.y, this.target_position.x - this.position.x)
+                    this:AdjustVelocity()
+                    local tail =AddSpecialEffect([[Abilities\Spells\Other\Doom\DoomDeath.mdl]],this.position.x, this.position.y)
+                    BlzSetSpecialEffectZ(tail, this.position.z)
+                    BlzSetSpecialEffectPitch(tail, 90 * math.degree)
+                    BlzSetSpecialEffectRoll(tail, -this.yaw + math.pi)
+                    BlzSetSpecialEffectTimeScale(tail, 3)
+                    DestroyEffect(tail)
+                    if (this.speed < 2000) then
+                        this.speed = 2000
+                        this:AdjustVelocity()
+                    end
+                end
+            end
+        else
+            this.speed = this.speed + 600 * CoreTicker.Interval
+            this:AdjustVelocity()
+        end
+    end,
+    OnHit = function(this, victim)
+    end,
+    ---@param this Projectil
+    ---@param terrainZ number
+    OnHitTerrain = function(this, terrainZ)
+        this:End()
     end
 }

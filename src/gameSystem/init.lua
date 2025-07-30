@@ -22,7 +22,7 @@ do
                 model = BlzGetUnitWeaponStringField(u, UNIT_WEAPON_SF_ATTACK_PROJECTILE_ART, 0),
                 speed = BlzGetUnitWeaponRealField(u, UNIT_WEAPON_RF_ATTACK_PROJECTILE_SPEED, 0),
                 no_gravity = false,
-                hit_range = 25,
+                hit_range = 30,
                 hit_terrain = true,
                 hit_other = false,
                 hit_ally = true,

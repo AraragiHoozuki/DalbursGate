@@ -1,3 +1,5 @@
+
+
 UnitMgr = {}
 UnitMgr.DummyCaster = FourCC('n000')
 ---@type table<unit, LuaUnit>

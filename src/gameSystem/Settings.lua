@@ -13,11 +13,15 @@ TAG.RACE = {
 TAG.ETC = {
     STOP_ANIMATION = 9000
 }
+TAG.SPECIAL = {
+    RESONANCE_MODIFIER = 10000,
+}
 
 -- CommonAbilities
 CommonAbilitiy = {}
 CommonAbilitiy.Invisibility = FourCC('A001')
 CommonAbilitiy.AttackSpeed = FourCC('A00J')
+CommonAbilitiy.Attack = FourCC('A015')
 CommonAbilitiy.MoveSpeed = FourCC('A00K')
 CommonAbilitiy.SightRange = FourCC('A00Q')
 CommonAbilitiy.SightRangeTrigger = FourCC('A00R')

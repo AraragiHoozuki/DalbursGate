@@ -23,7 +23,13 @@ ProjectilMgr.CreateAttackProjectil = function(uw_emitter, u_target, damage_value
     return Projectil:ctor {
         emitter = uw_emitter,
         target_unit = u_target,
-        settings = settings
+        settings = settings,
+        hit_damage = Damage:ctor{
+            source = uw_emitter,
+            amount = damage_value,
+            atktype = Damage.ATTACK_TYPE_PROJECTIL,
+            dmgtype = Damage.DAMAGE_TYPE_NORMAL
+        },
     }
 end
 
@@ -143,7 +149,6 @@ function Projectil:HideModelDeathAnimation(v)
 end
 
 --- Tracking
-
 function Projectil:InitAttitude()
     local settings = self.settings
     -- set start position
@@ -364,7 +369,7 @@ function Projectil:CheckHitTarget()
     end
 end
 
----@param victim UnitWrapper
+---@param victim UnitWrapper|nil
 function Projectil:Hit(victim)
     if victim ~= nil and self.hit_damage ~= nil then
         self.hit_damage.target = victim

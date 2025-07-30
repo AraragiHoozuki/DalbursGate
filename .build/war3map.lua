@@ -490,7 +490,9 @@ function Entity:MoveTo(x, y, z)
     if (z ~= nil) then self.position.z = z end
 end]]
 
-P['gameSystem/LuaUnitSystem.lua'] = [[UnitMgr = {}
+P['gameSystem/LuaUnitSystem.lua'] = [[
+
+UnitMgr = {}
 UnitMgr.DummyCaster = FourCC('n000')
 ---@type table<unit, LuaUnit>
 UnitMgr.LuaUnits = {}
@@ -1141,7 +1143,13 @@ ProjectilMgr.CreateAttackProjectil = function(uw_emitter, u_target, damage_value
     return Projectil:ctor {
         emitter = uw_emitter,
         target_unit = u_target,
-        settings = settings
+        settings = settings,
+        hit_damage = Damage:ctor{
+            source = uw_emitter,
+            amount = damage_value,
+            atktype = Damage.ATTACK_TYPE_PROJECTIL,
+            dmgtype = Damage.DAMAGE_TYPE_NORMAL
+        },
     }
 end
 
@@ -1261,7 +1269,6 @@ function Projectil:HideModelDeathAnimation(v)
 end
 
 --- Tracking
-
 function Projectil:InitAttitude()
     local settings = self.settings
     -- set start position
@@ -1482,7 +1489,7 @@ function Projectil:CheckHitTarget()
     end
 end
 
----@param victim UnitWrapper
+---@param victim UnitWrapper|nil
 function Projectil:Hit(victim)
     if victim ~= nil and self.hit_damage ~= nil then
         self.hit_damage.target = victim
@@ -1522,11 +1529,15 @@ TAG.RACE = {
 TAG.ETC = {
     STOP_ANIMATION = 9000
 }
+TAG.SPECIAL = {
+    RESONANCE_MODIFIER = 10000,
+}
 
 -- CommonAbilities
 CommonAbilitiy = {}
 CommonAbilitiy.Invisibility = FourCC('A001')
 CommonAbilitiy.AttackSpeed = FourCC('A00J')
+CommonAbilitiy.Attack = FourCC('A015')
 CommonAbilitiy.MoveSpeed = FourCC('A00K')
 CommonAbilitiy.SightRange = FourCC('A00Q')
 CommonAbilitiy.SightRangeTrigger = FourCC('A00R')
@@ -1603,6 +1614,19 @@ end]]
 
 P['gameSystem/UnitWrapperSystem.lua'] = [[require('utils')
 require('gameSystem.EntitySystem')
+
+do
+    -- register unit death event
+    local trigger = CreateTrigger()
+    local cond = Condition(function()
+        local unit = GetTriggerUnit()
+        UnitWrapper.Get(unit):OnDeath()
+        return false
+    end)
+    TriggerRegisterAnyUnitEventBJ(trigger, EVENT_PLAYER_UNIT_DEATH)
+    TriggerAddCondition(trigger, cond)
+end
+
 
 UnitMgr = {}
 UnitMgr.DummyCaster = FourCC('h000')
@@ -1682,8 +1706,12 @@ function UnitWrapper:InitCommonAbilities()
     if (GetUnitAbilityLevel(self.unit, CommonAbilitiy.AttackSpeed) < 1) then
         UnitAddAbility(self.unit, CommonAbilitiy.AttackSpeed)
     end
+    if (GetUnitAbilityLevel(self.unit, CommonAbilitiy.Attack) < 1) then
+        UnitAddAbility(self.unit, CommonAbilitiy.Attack)
+    end
     self.CommonAbilities = {}
     self.CommonAbilities.attack_speed = BlzGetUnitAbility(self.unit, CommonAbilitiy.AttackSpeed)
+    self.CommonAbilities.attack = BlzGetUnitAbility(self.unit, CommonAbilitiy.Attack)
 end
 
 function UnitWrapper:GetBonusAttackSpeed()
@@ -1695,6 +1723,18 @@ function UnitWrapper:AddAttackSpeed(value)
         self:GetBonusAttackSpeed() + value)
     IncUnitAbilityLevel(self.unit, CommonAbilitiy.AttackSpeed)
     DecUnitAbilityLevel(self.unit, CommonAbilitiy.AttackSpeed)
+end
+
+function UnitWrapper:GetBonusAttack()
+    return BlzGetAbilityIntegerLevelField(self.CommonAbilities.attack, ABILITY_ILF_ATTACK_BONUS, 0)
+end
+
+function UnitWrapper:AddAttack(value)
+    value = math.floor(value)
+    BlzSetAbilityIntegerLevelField(self.CommonAbilities.attack, ABILITY_ILF_ATTACK_BONUS, 0,
+        self:GetBonusAttack() + value)
+    IncUnitAbilityLevel(self.unit, CommonAbilitiy.Attack)
+    DecUnitAbilityLevel(self.unit, CommonAbilitiy.Attack)
 end
 
 function UnitWrapper:InitCommonStats()
@@ -2035,7 +2075,7 @@ do
                 model = BlzGetUnitWeaponStringField(u, UNIT_WEAPON_SF_ATTACK_PROJECTILE_ART, 0),
                 speed = BlzGetUnitWeaponRealField(u, UNIT_WEAPON_RF_ATTACK_PROJECTILE_SPEED, 0),
                 no_gravity = false,
-                hit_range = 25,
+                hit_range = 30,
                 hit_terrain = true,
                 hit_other = false,
                 hit_ally = true,
@@ -2090,31 +2130,27 @@ require('ui')
 
 CoreTicker.Init()
 
+
 local fogM = CreateFogModifierRect(Player(0), FOG_OF_WAR_VISIBLE, GetPlayableMapRect(), true, false)
 FogModifierStart(fogM)
 
 
-local v = CreateUnit(Player(0), FourCC('Hjai'), 0, 90, 293)
-local w = UnitWrapper.Get(v)
-BlzSetUnitMaxHP(v, 3000)
-SetUnitState(v, UNIT_STATE_LIFE, 3000)
 
-local hfoo = CreateUnit(Player(0), FourCC('hfoo'), 0, 90, 293)
-UnitWrapper.Get(hfoo):AcquireModifierById('PROTECTOR_TARGET', w)
-
-local asara = CreateUnit(Player(0), FourCC('H002'), 0, 90, 293)
-
-
-
-UnitAddAbility(v, FourCC('A003'))
-UnitAddAbility(v, AbilityScripts.ICE_KNIFE.AbilityId)
-UnitAddAbility(v, AbilityScripts.ICE_WALL.AbilityId)
-UnitAddAbility(v, AbilityScripts.FROZEN_MAGIC_SPHERE.AbilityId)
-UnitAddAbility(v, AbilityScripts.HELICOPTER_FALL.AbilityId)
-AbilityScripts.AddAbilityWithIntrinsecModifier(v, Master.Modifier.FREEZING_REALM.BindAbility)
 
 --AbilityScripts.AddAbilityWithIntrinsecModifier(red_dragon, Master.Modifier.RED_DRAGON_ENVIRONMENT.BindAbility)
-UnitAddAbility(asara, FourCC('A012'))]]
+local asara = CreateUnit(Player(0), FourCC('H002'), 0, 90, 293)
+UnitAddAbility(asara, FourCC('A012'))
+UnitAddAbility(asara, FourCC('A00P'))
+
+local lightning_tower = CreateUnit(Player(0), FourCC('h003'), 0, 90, 293)
+AbilityScripts.AddAbilityWithIntrinsecModifier(lightning_tower, FourCC('A016'))
+for i = 1, 10 do
+    local u = CreateUnit(Player(0), FourCC('hfoo'), 0, 90, 293)
+    BlzSetUnitMaxHP(u, 10)
+end
+
+local leonidas = CreateUnit(Player(0), FourCC('O002'), 0, 90, 293)
+UnitAddAbility(leonidas, AbilityScripts.SLEEPINESS_SETS_IN.AbilityId)]]
 
 P['master/MasterBase.lua'] = [[Master = {}]]
 
@@ -3401,6 +3437,229 @@ Master.Modifier.FROZEN_MAGIC_SPHERE_EXTEND_FROZEN = {
     end
 }]=]
 
+P['scripts/Leonidas.lua'] = [=[Master.Modifier.NO_FEAR_AURA = {
+    id = 'NO_FEAR_AURA',
+    icon = [[ReplaceableTextures\PassiveButtons\PASBTNCommand.blp]],
+    title = '无畏光环',
+    description = '对周围$Range$范围内的队友施加无畏光环效果，其死亡时对周围$EffectRange$范围内的友军单位赋予【无畏】效果，持续$Duration$秒，重复赋予时叠加层数并刷新持续时间。\n无畏：攻击速度+30%，每增加1层，再加15%攻击速度，达到5层时，获得在无畏效果期间受到任何伤害都不会死亡的效果。',
+    duration = -1,
+    interval = 0.9,
+    reapply_mode = Modifier.REAPPLY_MODE.NO,
+    remove_on_death = false,
+    BindAbility = FourCC('A013'),
+    Effects = { {
+        model = [[Abilities\Spells\Orc\CommandAura\CommandAura.mdl]],
+        attach_point = 'origin'
+    } },
+    LevelValues = {
+        Range = { 900 },
+        EffectRange = {300},
+        Duration = {6},
+    },
+    hidden = true,
+    ---@param this Modifier
+    Update = function(this)
+        local cond = Condition(function()
+            local unit = GetFilterUnit()
+            if (not IsUnitType(unit, UNIT_TYPE_DEAD))
+                and IsUnitAlly(unit, GetOwningPlayer(this.owner.unit)) then
+                this.owner:ApplyModifier(Master.Modifier.NO_FEAR_AURA_EFFECT, UnitWrapper.Get(unit))
+            end
+            return false
+        end)
+        GroupEnumUnitsInRange(Entity.tempGroup, GetUnitX(this.owner.unit), GetUnitY(this.owner.unit), this:LV('Range'), cond)
+        DestroyBoolExpr(cond)
+    end
+}
+
+Master.Modifier.NO_FEAR_AURA_EFFECT= {
+    id = 'NO_FEAR_AURA_EFFECT',
+    icon = [[ReplaceableTextures\PassiveButtons\PASBTNCommand.blp]],
+    title = '无畏光环效果',
+    description = '死亡时对周围300范围内的友军单位赋予【无畏】效果，持续6秒，重复赋予时叠加层数并刷新持续时间。\n无畏：攻击速度+30%，每增加1层，再加15%攻击速度，达到5层时，获得在无畏效果期间受到任何伤害都不会死亡的效果。',
+    duration = 1,
+    interval = 1,
+    reapply_mode = Modifier.REAPPLY_MODE.REFRESH,
+    BindAbility = FourCC('A013'),
+    Effects = { {
+        model = [[Abilities\Spells\Other\GeneralAuraTarget\GeneralAuraTarget.mdl]],
+        attach_point = 'origin'
+    } },
+    LevelValues = {
+        Range = Master.Modifier.NO_FEAR_AURA.LevelValues.EffectRange,
+    },
+    ---@param this Modifier
+    OnDeath = function(this)
+        local cond = Condition(function()
+            local unit = GetFilterUnit()
+            if (not IsUnitType(unit, UNIT_TYPE_DEAD))
+                and IsUnitAlly(unit, GetOwningPlayer(this.owner.unit)) then
+                this.owner:ApplyModifier(Master.Modifier.NO_FEAR_AURA_ACTIVATED_EFFECT, UnitWrapper.Get(unit))
+            end
+            return false
+        end)
+        GroupEnumUnitsInRange(Entity.tempGroup, GetUnitX(this.owner.unit), GetUnitY(this.owner.unit), this:LV('Range'), cond)
+        DestroyBoolExpr(cond)
+        DestroyEffect(AddSpecialEffect([[Abilities\Spells\Undead\UnholyFrenzyAOE\UnholyFrenzyAOETarget.mdl]], GetUnitX(this.owner.unit), GetUnitY(this.owner.unit)))
+    end
+}
+
+Master.Modifier.NO_FEAR_AURA_ACTIVATED_EFFECT= {
+    id = 'NO_FEAR_AURA_ACTIVATED_EFFECT',
+    icon = [[ReplaceableTextures\PassiveButtons\PASBTNCommand.blp]],
+    title = '无畏',
+    description = '攻击速度+30%，每增加1层，再加15%攻击速度，达到5层时，获得在无畏效果期间受到任何伤害都不会死亡的效果。',
+    duration = 6,
+    interval = 1,
+    max_stack = 5,
+    reapply_mode = Modifier.REAPPLY_MODE.STACK_AND_REFRESH,
+    BindAbility = FourCC('A013'),
+    Effects = { {
+        model = [[Abilities\Spells\Orc\Bloodlust\BloodlustTarget.mdl]],
+        attach_point = 'hands'
+    } },
+    LevelValues = {
+        EffectRange = Master.Modifier.NO_FEAR_AURA.LevelValues.EffectRange,
+        Duration = Master.Modifier.NO_FEAR_AURA.LevelValues.Duration,
+    },
+    ---@param this Modifier
+    OnAcquired = function(this)
+        this.owner:AddAttackSpeed(0.3)
+        this.CustomValues.BonusAttackSpeed = 0.30
+    end,
+    OnStack = function(this, stack)
+        this.owner:AddAttackSpeed(- this.CustomValues.BonusAttackSpeed)
+        this.owner:AddAttackSpeed(0.15 + 0.15 * stack)
+        this.CustomValues.BonusAttackSpeed = 0.15 + 0.15 * stack
+    end,
+    OnRemoved = function(this)
+        this.owner:AddAttackSpeed(- this.CustomValues.BonusAttackSpeed)
+        this.CustomValues.BonusAttackSpeed = 0
+    end,
+    OnStartTakeDamage = function(this, damage)
+        if (this.stack >= 5 and damage.amount>=GetWidgetLife(this.owner.unit)) then
+            damage.amount = GetWidgetLife(this.owner.unit) - 1
+        end
+    end,
+}
+
+Master.Modifier.LEONIDAS_LEGACY = {
+    id = 'LEONIDAS_LEGACY',
+    icon = [[ReplaceableTextures\PassiveButtons\PASBTNCommand.blp]],
+    title = '遗志',
+    description = '当自身死亡时，为周围友军恢复$HPRegenRate$%生命值。同时在原地留下一个遗志守卫，持续到自身复活。\n遗志守卫提供与单位死亡前相同的「无畏光环」效果，此外还能为范围内友军增加$InitialAtkBonus$点攻击力，每当范围内有友军死亡时，增加攻击力效果再增加$AtkBonusPerDeath$点。',
+    duration = -1,
+    interval = 65535,
+    reapply_mode = Modifier.REAPPLY_MODE.NO,
+    remove_on_death = false,
+    BindAbility = FourCC('A014'),
+    Effects = { },
+    LevelValues = {
+        HPRegenRate = { 50 },
+        HPRegenRange = {900},
+        InitialAtkBonus = {30},
+        AtkBonusPerDeath = {10},
+        SummonWardType = {FourCC('o003')}
+    },
+    ---@param this Modifier
+    OnDeath = function(this)
+        local cond = Condition(function()
+            local unit = GetFilterUnit()
+            if (not IsUnitType(unit, UNIT_TYPE_DEAD))
+                and IsUnitAlly(unit, GetOwningPlayer(this.owner.unit)) then
+                Damage:ctor{
+                    source = this.owner,
+                    target = UnitWrapper.Get(unit),
+                    amount = GetWidgetLife(unit) * this:LV('HPRegenRate') / 100,
+                    atktype = Damage.ATTACK_TYPE_SPELL,
+                    dmgtype = Damage.DAMAGE_TYPE_HEAL,
+                    eletype = Damage.ELEMENT_TYPE_NONE,
+                }:Apply()
+                DestroyEffect(AddSpecialEffectTarget([[Abilities\Spells\Undead\VampiricAura\VampiricAuraTarget.mdl]], unit, 'chest'))
+            end
+            return false
+        end)
+        GroupEnumUnitsInRange(Entity.tempGroup, GetUnitX(this.owner.unit), GetUnitY(this.owner.unit), this:LV('HPRegenRange'), cond)
+        DestroyBoolExpr(cond)
+        local ward = CreateUnit(GetOwningPlayer(this.owner.unit), this:LV('SummonWardType'), GetUnitX(this.owner.unit), GetUnitY(this.owner.unit), 0)
+        AbilityScripts.AddAbilityWithIntrinsecModifier(ward, Master.Modifier.NO_FEAR_AURA.BindAbility)
+        UnitWrapper.Get(ward):AcquireModifierById('LEONIDAS_LEGACY_ATTACK_AURA', this.owner, this.ability)
+    end
+}
+
+Master.Modifier.LEONIDAS_LEGACY_ATTACK_AURA = {
+    id = 'LEONIDAS_LEGACY_ATTACK_AURA',
+    icon = [[]],
+    title = '遗志（攻击加成）',
+    description = '',
+    duration = -1,
+    interval = 0.9,
+    reapply_mode = Modifier.REAPPLY_MODE.NO,
+    remove_on_death = false,
+    BindAbility = FourCC('A014'),
+    Effects = { {
+        model = [[Abilities\Spells\Orc\CommandAura\CommandAura.mdl]],
+        attach_point = 'origin'
+    } },
+    LevelValues = {
+        Range = { 900 },
+        InitialAtkBonus = Master.Modifier.LEONIDAS_LEGACY.LevelValues.InitialAtkBonus,
+        AtkBonusPerDeath = Master.Modifier.LEONIDAS_LEGACY.LevelValues.AtkBonusPerDeath,
+    },
+    hidden = true,
+    OnAcquired = function(this)
+        this.CustomValues.TotalAttackBonus = this:LV('InitialAtkBonus')
+    end,
+    ---@param this Modifier
+    Update = function(this)
+        local cond = Condition(function()
+            local unit = GetFilterUnit()
+            if (not IsUnitType(unit, UNIT_TYPE_DEAD))
+                and IsUnitAlly(unit, GetOwningPlayer(this.owner.unit)) then
+                this.owner:ApplyModifier(Master.Modifier.LEONIDAS_LEGACY_ATTACK_AURA_EFFECT, UnitWrapper.Get(unit), this.ability)
+            end
+            return false
+        end)
+        GroupEnumUnitsInRange(Entity.tempGroup, GetUnitX(this.owner.unit), GetUnitY(this.owner.unit), this:LV('Range'), cond)
+        DestroyBoolExpr(cond)
+    end
+}
+
+Master.Modifier.LEONIDAS_LEGACY_ATTACK_AURA_EFFECT= {
+    id = 'LEONIDAS_LEGACY_ATTACK_AURA_EFFECT',
+    icon = [[ReplaceableTextures\PassiveButtons\PASBTNMarkOfFire.blp]],
+    title = '遗志激励',
+    description = '这个单位攻击力增加@BonusAttack@点',
+    duration = 1,
+    interval = 0.1,
+    reapply_mode = Modifier.REAPPLY_MODE.REFRESH,
+    Effects = {},
+    ---@param this Modifier
+    OnAcquired = function(this)
+        this.CustomValues.BonusAttack = 0
+        this.CustomValues.SourceAura = this.applier:GetAffectedModifier('LEONIDAS_LEGACY_ATTACK_AURA')
+    end,
+    ---@param this Modifier
+    OnDeath = function(this)
+        
+        local aura = this.CustomValues.SourceAura
+        if aura ~= nil then
+            aura.CustomValues.TotalAttackBonus = aura.CustomValues.TotalAttackBonus + aura:LV('AtkBonusPerDeath')
+        end
+    end,
+    ---@param this Modifier
+    Update = function(this)
+        this.owner:AddAttack(-this.CustomValues.BonusAttack)
+        this.CustomValues.BonusAttack = this.CustomValues.SourceAura.CustomValues.TotalAttackBonus
+        this.owner:AddAttack(this.CustomValues.BonusAttack)
+    end,
+    ---@param this Modifier
+    OnRemoved = function(this)
+        this.owner:AddAttack(-this.CustomValues.BonusAttack)
+        this.CustomValues.BonusAttack = 0
+    end,
+}]=]
+
 P['scripts/Misc.lua'] = [=[require('gameSystem')
 require('master')
 
@@ -3504,7 +3763,7 @@ Master.Projectil.BOUNCING_INFERNAL = {
     offsetX = 0,
     offsetY = 0,
     offsetZ = 50,
-    OnCreate = function(this)
+    OnCreated = function(this)
         this.CustomValues.BounceCount = 0
     end,
     OnHit = nil,
@@ -3638,8 +3897,8 @@ AbilityScripts.SLEEPINESS_SETS_IN = {
     Cast = function()
         local caster = UnitWrapper.Get(GetTriggerUnit())
         local target = UnitWrapper.Get(GetSpellTargetUnit())
-        -- local mod = caster:ApplyModifierById('SLEEPINESS_SETS_IN', target)
-        local mod = caster:ApplyModifierById('SOUL_ABSORB_TARGET', target)
+        local mod = caster:ApplyModifierById('SLEEPINESS_SETS_IN', target)
+        -- local mod = caster:ApplyModifierById('SOUL_ABSORB_TARGET', target)
     end
 }
 
@@ -3903,9 +4162,10 @@ Master.Modifier.SOUL_ABSORB_TARGET = {
     end,
 }
 
-
+--[[
+]]--
 AbilityScripts.HELICOPTER_FALL = {
-    AbilityId = FourCC('A00P'),
+    --AbilityId = FourCC('A00P'),
     TURNING_SPEED = 2 * math.pi,
     FALLING_SPEED = 600,
     Cast = function()
@@ -3921,8 +4181,8 @@ AbilityScripts.HELICOPTER_FALL = {
         local terrain_z = Entity.GetLocationZ(x, y)
         local z = terrain_z + 1000
         local yaw = 0
-        local id = GUID.generate()
         
+        local id = GUID.generate()
         CoreTicker.AttachAction(function(interval)
             BlzSetSpecialEffectYaw(model, yaw)
             BlzSetSpecialEffectZ(model, z)
@@ -3937,6 +4197,225 @@ AbilityScripts.HELICOPTER_FALL = {
                 DestroyEffect(explosion)
             end
         end,nil,id)
+    end
+}
+
+AbilityScripts.SINE_BULLET = {
+    --AbilityId = FourCC('A00P'),
+    LINE_SPEED = 500,
+    Cast = function()
+        AbilityScripts.SINE_BULLET.Effect(
+            UnitWrapper.Get(GetTriggerUnit()),
+            GetSpellTargetX(),
+            GetSpellTargetY()
+        )
+    end,
+    Effect = function(caster, x, y)
+        local origin_x = caster:GetX()
+        local origin_y = caster:GetY()
+        local model = AddSpecialEffect([[Effects\FrostBoltV1.mdx]], origin_x, origin_y)
+        local orientation = math.atan(y - origin_y, x - origin_x)
+        local distance = 0
+        
+        local id = GUID.generate() --生成id
+        -- 将循环动作附加到主循环
+        CoreTicker.AttachAction(function(interval)
+            distance = distance + AbilityScripts.SINE_BULLET.LINE_SPEED * interval
+            local y0 = Sin(distance*2*math.pi/300) * 200
+            local x0 = distance
+            local x1 = x0 * Cos(orientation) - y0 * Sin(orientation) + origin_x
+            local y1 = x0 * Sin(orientation) + y0 * Cos(orientation) + origin_y
+            BlzSetSpecialEffectX(model, x1)
+            BlzSetSpecialEffectY(model, y1)
+            --调整模型面向角度，始终朝向正弦切线方向
+            BlzSetSpecialEffectYaw(model, math.atan(Cos(distance*2*math.pi/300)) + orientation)
+            -- 满足条件时，结束循环
+            if distance > 1500 then
+                CoreTicker.DetachAction(id)
+                DestroyEffect(model)
+            end
+        end,nil,id)
+    end
+}
+
+
+-- 闪电风暴攻击
+Master.Modifier.LIGHTNING_STORM = {
+    id = 'LIGHTNING_STORM',
+    icon = [[ReplaceableTextures\CommandButtons\BTNDefendStop.blp]],
+    title = '闪电风暴攻击',
+    description = '',
+    duration = -1,
+    interval = 65535,
+    reapply_mode = Modifier.REAPPLY_MODE.NO,
+    remove_on_death = false,
+    Effects = {},
+    BindAbility = FourCC('A016'),
+    ---@param this Modifier
+    ---@param damage Damage
+    OnDealDamage = function(this, damage)
+        if   damage.atktype == Damage.ATTACK_TYPE_PROJECTIL then
+            local x = this.owner:GetX()
+            local y = this.owner:GetY()
+            local tx = damage.target:GetX()
+            local ty = damage.target:GetY()
+            lightning = AddLightningEx('CLPB', false,x,y, Entity.GetLocationZ(x,y)+200,tx, ty,Entity.GetLocationZ(tx, ty))
+            local id = GUID.generate()
+            local count = 0
+            CoreTicker.AttachAction(function()
+                local nx = damage.target:GetX()
+                local ny = damage.target:GetY()
+                local distance = math.sqrt((nx - tx) * (nx - tx) + (ny - ty) * (ny - ty))
+                if distance > 25 then
+                    distance = 25
+                end
+                local r = math.atan(ny - ty, nx - tx)
+                tx = tx + distance*Cos(r)
+                ty = ty + distance*Sin(r)
+                MoveLightningEx(lightning, false, x, y,  Entity.GetLocationZ(x,y)+200, tx, ty, Entity.GetLocationZ(tx, ty))
+                DestroyEffect(AddSpecialEffect([[Abilities\Weapons\Bolt\BoltImpact.mdl]], tx, ty))              
+                DestroyEffect(AddSpecialEffect([[Abilities\Spells\Human\Thunderclap\ThunderClapCaster.mdl]], tx, ty))              
+                local cond = Condition(function()
+                    local u = GetFilterUnit()
+                    if not IsUnitType(u, UNIT_TYPE_DEAD)
+                        and IsUnitEnemy(u, GetOwningPlayer(this.owner.unit)) then
+                        local uw = UnitWrapper.Get(u)
+                        Damage:ctor {
+                            amount = 25,
+                            source = this.owner,
+                            target = uw,
+                            atktype = Damage.ATTACK_TYPE_SPELL,
+                            dmgtype = Damage.DAMAGE_TYPE_NORMAL,
+                            eletype = Damage.ELEMENT_TYPE_ELECTRIC
+                        }:Resolve()
+                    end
+                    return false
+                end)
+                GroupEnumUnitsInRange(Entity.TempGroup, 
+                    tx, 
+                    ty, 
+                    200, cond
+                )
+                DestroyBoolExpr(cond)
+                count = count + 1
+                if count >= 8 then
+                    DestroyLightning(lightning)
+                    CoreTicker.DetachAction(id)
+                end
+                
+            end, 0.1, id)
+        end
+    end
+}
+
+Master.DefaultAttackProjectil[FourCC('h003')] = {
+    model = [[Abilities\\Weapons\\LichMissile\\LichMissile.mdl]],
+    speed = 6000,
+    no_gravity = true,
+    hit_range = 50,
+    hit_terrain = false,
+    hit_other = false,
+    hit_ally = true,
+    hit_piercing = false,
+    track_type = Projectil.TRACK_TYPE_UNIT,
+    trackZ = true,
+    tracking_angle = 3600 * math.degree,
+    turning_speed = 3600 * math.degree,
+    turning_speed_pitch = 3600 * math.degree,
+    max_flying_distance = 3000,
+}
+
+-- 导弹
+AbilityScripts.BALLISTIC_MISSILE = {
+    AbilityId = FourCC('A00P'), -- TBD
+    Cast = function()
+        AbilityScripts.BALLISTIC_MISSILE.Effect(
+            UnitWrapper.Get(GetTriggerUnit()),
+            GetSpellTargetX(),
+            GetSpellTargetY()
+        )
+    end,
+    Effect = function(caster, tx, ty)
+        local tloc = Vector3:ctor {
+            x = tx,
+            y = ty,
+            z = 0
+        }
+        tloc.z = Projectil.GetLocationZ(tloc.x, tloc.y)
+        Projectil:ctor {
+            emitter = caster,
+            x = caster:GetX(),
+            y = caster:GetY(),
+            z = Entity.GetUnitZ(caster.unit) + 200,
+            target_position = tloc,
+            settings = Master.Projectil.BALLISTIC_MISSILE
+        }
+    end
+}
+Master.Projectil.BALLISTIC_MISSILE = {
+    model = [[Abilities\Weapons\CannonTowerMissile\CannonTowerMissile.mdl]],
+    model_scale = 2,
+    speed = 300,
+    no_gravity = true,
+    hit_range = 50,
+    hit_terrain = true,
+    hit_other = true,
+    hit_ally = true,
+    hit_piercing = false,
+    track_type = Projectil.TRACK_TYPE_POSITION,
+    tracking_angle = 120 * math.degree,
+    turning_speed = 90 * math.degree,
+    turning_speed_pitch = 0,
+    max_flying_distance = 6000,
+    offsetX = 0,
+    offsetY = 0,
+    offsetZ = 50,
+    ---@param this Projectil
+    OnCreated = function(this)
+        this.pitch = 90 * math.degree
+        this:AdjustVelocity()
+        this.CustomValues.ChangedToStep2 = false
+        this.CustomValues.ChangedToStep3 = false
+    end,
+    ---@param this Projectil
+    CustomTrack = function(this)
+        if(this.flying_time > 0.8) then
+            if(this.position:DistanceTo(this.target_position) < 800) then
+                if this.CustomValues.ChangedToStep3 == false then
+                    this.CustomValues.ChangedToStep3 = true
+                    this.turning_speed_pitch = 120 * math.degree
+                    this.no_gravity = false
+                end
+                this:Track()
+            elseif (this.CustomValues.ChangedToStep3 == false) then
+                if (this.CustomValues.ChangedToStep2 == false) then
+                    this.CustomValues.ChangedToStep2 = true
+                    this.pitch = 0
+                    this.yaw = math.atan(this.target_position.y - this.position.y, this.target_position.x - this.position.x)
+                    this:AdjustVelocity()
+                    local tail =AddSpecialEffect([[Abilities\Spells\Other\Doom\DoomDeath.mdl]],this.position.x, this.position.y)
+                    BlzSetSpecialEffectZ(tail, this.position.z)
+                    BlzSetSpecialEffectPitch(tail, 90 * math.degree)
+                    BlzSetSpecialEffectRoll(tail, -this.yaw + math.pi)
+                    BlzSetSpecialEffectTimeScale(tail, 3)
+                    DestroyEffect(tail)
+                    if (this.speed < 2000) then
+                        this.speed = 2000
+                        this:AdjustVelocity()
+                    end
+                end
+            end
+        else
+            this.speed = this.speed + 600 * CoreTicker.Interval
+            this:AdjustVelocity()
+        end
+    end,
+    OnHit = function(this, victim)
+    end,
+    ---@param this Projectil
+    ---@param terrainZ number
+    OnHitTerrain = function(this, terrainZ)
+        this:End()
     end
 }]=]
 
@@ -4648,6 +5127,48 @@ Master.Projectil.RED_DRAGON_BREATH = {
     end
 }]=]
 
+P['scripts/ResonanceSkills.lua'] = [=[Master.Modifier.RESONANCE = {
+    id = 'RESONANCE',
+    icon = [[ReplaceableTextures\CommandButtons\BTNDagonAdvocate_DagonsBless.dds]],
+    title = '共鸣',
+    description =
+    '同步获得周围$Range$范围内友军的共鸣技能效果',
+    duration = -1,
+    interval = 0.1,
+    remove_on_death = false,
+    tags = {TAG.SPECIAL.RESONANCE_MODIFIER},
+    Effects = {},
+    LevelValues = {
+        Range = { 500 }
+    },
+    ---@param this Modifier
+    Update = function(this)
+        local cond = Condition(function()
+            local unit = GetFilterUnit()
+            if (not IsUnitType(unit, UNIT_TYPE_DEAD))
+                and IsUnitAlly(unit, GetOwningPlayer(this.owner.unit)) then
+                local uw = UnitWrapper.Get(unit)
+                for i = #(uw.modifiers),1,-1 do
+                    local mod = uw.modifiers[i]
+                    if (mod.id == this.id) then
+                        if (mod.owner.unit ~= this.owner.unit) then
+                            for k, v in pairs(mod.effects) do
+                                this:AddEffect(k, v)
+                            end
+                            this:Reapply()
+                        end
+                        return true
+                    end
+                end
+            end
+            return false
+        end)
+        GroupEnumUnitsInRange(Entity.tempGroup, GetUnitX(this.owner.unit), GetUnitY(this.owner.unit), this:LV('Range'),
+            cond)
+        DestroyBoolExpr(cond)
+    end
+}]=]
+
 P['scripts/init.lua'] = [=[AbilityScripts = {}
 AbilityScripts.AddAbilityWithIntrinsecModifier = function(u, abilityId)
     UnitAddAbility(u, abilityId)
@@ -4659,7 +5180,6 @@ AbilityScripts.AddAbilityWithIntrinsecModifier = function(u, abilityId)
     end
 end
 AbilityCastDict = {
-    [FourCC('A00D')] = 'BOUNCING_INFERNAL',
     [FourCC('A00I')] = 'SPAWN_TEST_UNITS',
     [FourCC('A00M')] = 'SLEEPINESS_SETS_IN',
     [FourCC('A00N')] = 'SPACE_CUT_CIRCLE',
@@ -4682,6 +5202,9 @@ AbilityIntrinsecModDict = {
     [FourCC('A00Y')] = {'LIFE_BY_ATTACK_TIME'},
     [FourCC('A00Z')] = {'DAGONS_BLESS', 'OCEANUS_STRIKE'},
     [FourCC('AUav')] = {'BLOOD_THIRST_AURA'},
+    [FourCC('A013')] = {'NO_FEAR_AURA'},
+    [FourCC('A014')] = {'LEONIDAS_LEGACY'},
+    [FourCC('A016')] = {'LIGHTNING_STORM'},
 }
 
 
@@ -4694,6 +5217,7 @@ require('scripts.RedDragon')
 --require('scripts.101FireWork')
 require('scripts.IceMaiden')
 require('scripts.NagaQueen')
+require('scripts.Leonidas')
 
 do -- Ability Cast Trigger
     local trigger = CreateTrigger()

@@ -1,6 +1,19 @@
 require('utils')
 require('gameSystem.EntitySystem')
 
+do
+    -- register unit death event
+    local trigger = CreateTrigger()
+    local cond = Condition(function()
+        local unit = GetTriggerUnit()
+        UnitWrapper.Get(unit):OnDeath()
+        return false
+    end)
+    TriggerRegisterAnyUnitEventBJ(trigger, EVENT_PLAYER_UNIT_DEATH)
+    TriggerAddCondition(trigger, cond)
+end
+
+
 UnitMgr = {}
 UnitMgr.DummyCaster = FourCC('h000')
 ---@type table<unit, UnitWrapper>
@@ -79,8 +92,12 @@ function UnitWrapper:InitCommonAbilities()
     if (GetUnitAbilityLevel(self.unit, CommonAbilitiy.AttackSpeed) < 1) then
         UnitAddAbility(self.unit, CommonAbilitiy.AttackSpeed)
     end
+    if (GetUnitAbilityLevel(self.unit, CommonAbilitiy.Attack) < 1) then
+        UnitAddAbility(self.unit, CommonAbilitiy.Attack)
+    end
     self.CommonAbilities = {}
     self.CommonAbilities.attack_speed = BlzGetUnitAbility(self.unit, CommonAbilitiy.AttackSpeed)
+    self.CommonAbilities.attack = BlzGetUnitAbility(self.unit, CommonAbilitiy.Attack)
 end
 
 function UnitWrapper:GetBonusAttackSpeed()
@@ -92,6 +109,18 @@ function UnitWrapper:AddAttackSpeed(value)
         self:GetBonusAttackSpeed() + value)
     IncUnitAbilityLevel(self.unit, CommonAbilitiy.AttackSpeed)
     DecUnitAbilityLevel(self.unit, CommonAbilitiy.AttackSpeed)
+end
+
+function UnitWrapper:GetBonusAttack()
+    return BlzGetAbilityIntegerLevelField(self.CommonAbilities.attack, ABILITY_ILF_ATTACK_BONUS, 0)
+end
+
+function UnitWrapper:AddAttack(value)
+    value = math.floor(value)
+    BlzSetAbilityIntegerLevelField(self.CommonAbilities.attack, ABILITY_ILF_ATTACK_BONUS, 0,
+        self:GetBonusAttack() + value)
+    IncUnitAbilityLevel(self.unit, CommonAbilitiy.Attack)
+    DecUnitAbilityLevel(self.unit, CommonAbilitiy.Attack)
 end
 
 function UnitWrapper:InitCommonStats()

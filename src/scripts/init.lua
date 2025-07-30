@@ -9,7 +9,6 @@ AbilityScripts.AddAbilityWithIntrinsecModifier = function(u, abilityId)
     end
 end
 AbilityCastDict = {
-    [FourCC('A00D')] = 'BOUNCING_INFERNAL',
     [FourCC('A00I')] = 'SPAWN_TEST_UNITS',
     [FourCC('A00M')] = 'SLEEPINESS_SETS_IN',
     [FourCC('A00N')] = 'SPACE_CUT_CIRCLE',
@@ -32,6 +31,9 @@ AbilityIntrinsecModDict = {
     [FourCC('A00Y')] = {'LIFE_BY_ATTACK_TIME'},
     [FourCC('A00Z')] = {'DAGONS_BLESS', 'OCEANUS_STRIKE'},
     [FourCC('AUav')] = {'BLOOD_THIRST_AURA'},
+    [FourCC('A013')] = {'NO_FEAR_AURA'},
+    [FourCC('A014')] = {'LEONIDAS_LEGACY'},
+    [FourCC('A016')] = {'LIGHTNING_STORM'},
 }
 
 
@@ -44,6 +46,7 @@ require('scripts.RedDragon')
 --require('scripts.101FireWork')
 require('scripts.IceMaiden')
 require('scripts.NagaQueen')
+require('scripts.Leonidas')
 
 do -- Ability Cast Trigger
     local trigger = CreateTrigger()
